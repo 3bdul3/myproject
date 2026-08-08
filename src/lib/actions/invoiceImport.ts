@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
+import { getActiveCompanyId } from "@/lib/authz";
 import { TAX_RATE } from "@/lib/constants";
 import { getNextDocNumber, periodErrorMessage } from "@/lib/invoiceNumbering";
 import type { Customer, Invoice, InvoiceDocType, LineItem } from "@/types";
@@ -15,6 +16,7 @@ const SHEET_DOC_TYPE: Record<string, InvoiceDocType> = {
 };
 
 export async function importInvoicesFromExcel(formData: FormData) {
+  const companyId = await getActiveCompanyId();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return;
 
@@ -45,7 +47,7 @@ export async function importInvoicesFromExcel(formData: FormData) {
       if (docType === "credit_note" || docType === "debit_note") {
         const relatedNumber = String(row.relatedInvoiceNumber || "").trim();
         if (!relatedNumber) continue;
-        const related = await db.invoices.findOneAsync<Invoice>({ number: relatedNumber, docType: "tax" });
+        const related = await db.invoices.findOneAsync<Invoice>(companyId, { number: relatedNumber, docType: "tax" });
         if (!related) continue;
         customerId = related.customerId;
         customerName = related.customerName;
@@ -54,7 +56,7 @@ export async function importInvoicesFromExcel(formData: FormData) {
       } else {
         const customerCode = String(row.customerCode || "").trim();
         if (!customerCode) continue;
-        const customer = await db.customers.findOneAsync<Customer>({ customerCode });
+        const customer = await db.customers.findOneAsync<Customer>(companyId, { customerCode });
         if (!customer) continue;
         customerId = customer._id!;
         customerName = customer.nameAr || customer.nameEn;
@@ -67,9 +69,9 @@ export async function importInvoicesFromExcel(formData: FormData) {
       const tax = Math.round(taxable * TAX_RATE * 100) / 100;
       const total = taxable + tax;
       const dueDate = String(row.dueDate || "").trim() || date;
-      const number = await getNextDocNumber(docType);
+      const number = await getNextDocNumber(companyId, docType);
 
-      await db.invoices.insertAsync<Invoice>({
+      await db.invoices.insertAsync<Invoice>(companyId, {
         docType,
         number,
         customerId,

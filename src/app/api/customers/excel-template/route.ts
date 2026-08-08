@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
+import { getActiveCompanyId } from "@/lib/authz";
 
 const HEADERS = [
   "customerCode (auto)",
@@ -45,7 +46,8 @@ const PREFILLED_ROWS = 300;
 const DATA_END_COL = "Q"; // last column (infoEmail)
 
 export async function GET() {
-  const initialCount = await db.customers.countAsync({});
+  const companyId = await getActiveCompanyId();
+  const initialCount = await db.customers.countAsync(companyId, {});
 
   const worksheet = XLSX.utils.aoa_to_sheet([HEADERS, EXAMPLE_ROW]);
 

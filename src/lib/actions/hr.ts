@@ -2,15 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { getActiveCompanyId } from "@/lib/authz";
 import { getAccountByCode, postJournalEntry } from "@/lib/actions/accounting";
 import type { Attendance, Department, Employee, Payroll } from "@/types";
 
 export async function listEmployees() {
-  return db.employees.findAsync<Employee>({}).sort({ createdAt: -1 });
+  const companyId = await getActiveCompanyId();
+  return db.employees.findAsync<Employee>(companyId, {}).sort({ createdAt: -1 });
 }
 
 export async function createEmployee(formData: FormData) {
-  await db.employees.insertAsync<Employee>({
+  const companyId = await getActiveCompanyId();
+  await db.employees.insertAsync<Employee>(companyId, {
     name: String(formData.get("name")),
     email: String(formData.get("email")),
     phone: String(formData.get("phone")),
@@ -25,16 +28,19 @@ export async function createEmployee(formData: FormData) {
 }
 
 export async function updateEmployeeStatus(id: string, status: Employee["status"]) {
-  await db.employees.updateAsync({ _id: id }, { $set: { status } });
+  const companyId = await getActiveCompanyId();
+  await db.employees.updateAsync(companyId, { _id: id }, { $set: { status } });
   revalidatePath("/hr/employees");
 }
 
 export async function listDepartments() {
-  return db.departments.findAsync<Department>({}).sort({ name: 1 });
+  const companyId = await getActiveCompanyId();
+  return db.departments.findAsync<Department>(companyId, {}).sort({ name: 1 });
 }
 
 export async function createDepartment(formData: FormData) {
-  await db.departments.insertAsync<Department>({
+  const companyId = await getActiveCompanyId();
+  await db.departments.insertAsync<Department>(companyId, {
     name: String(formData.get("name")),
     managerName: String(formData.get("managerName") || ""),
     createdAt: new Date().toISOString(),
@@ -43,14 +49,16 @@ export async function createDepartment(formData: FormData) {
 }
 
 export async function listAttendance() {
-  return db.attendance.findAsync<Attendance>({}).sort({ createdAt: -1 }).limit(100);
+  const companyId = await getActiveCompanyId();
+  return db.attendance.findAsync<Attendance>(companyId, {}).sort({ createdAt: -1 }).limit(100);
 }
 
 export async function createAttendance(formData: FormData) {
+  const companyId = await getActiveCompanyId();
   const employeeId = String(formData.get("employeeId"));
-  const employee = await db.employees.findOneAsync<Employee>({ _id: employeeId });
+  const employee = await db.employees.findOneAsync<Employee>(companyId, { _id: employeeId });
 
-  await db.attendance.insertAsync<Attendance>({
+  await db.attendance.insertAsync<Attendance>(companyId, {
     employeeId,
     employeeName: employee?.name ?? "Unknown",
     date: String(formData.get("date")),
@@ -64,14 +72,16 @@ export async function createAttendance(formData: FormData) {
 }
 
 export async function listPayroll() {
-  return db.payroll.findAsync<Payroll>({}).sort({ createdAt: -1 });
+  const companyId = await getActiveCompanyId();
+  return db.payroll.findAsync<Payroll>(companyId, {}).sort({ createdAt: -1 });
 }
 
 export async function runPayroll(formData: FormData) {
+  const companyId = await getActiveCompanyId();
   const month = String(formData.get("month"));
-  const employees = await db.employees.findAsync<Employee>({ status: "active" });
+  const employees = await db.employees.findAsync<Employee>(companyId, { status: "active" });
 
-  const existing = await db.payroll.findAsync<Payroll>({ month });
+  const existing = await db.payroll.findAsync<Payroll>(companyId, { month });
   const alreadyRun = new Set(existing.map((p) => p.employeeId));
 
   for (const emp of employees) {
@@ -80,7 +90,7 @@ export async function runPayroll(formData: FormData) {
     const bonuses = 0;
     const netPay = emp.salary - deductions + bonuses;
 
-    await db.payroll.insertAsync<Payroll>({
+    await db.payroll.insertAsync<Payroll>(companyId, {
       employeeId: emp._id!,
       employeeName: emp.name,
       month,
@@ -97,13 +107,15 @@ export async function runPayroll(formData: FormData) {
 }
 
 export async function markPayrollPaid(id: string) {
-  const record = await db.payroll.findOneAsync<Payroll>({ _id: id });
+  const companyId = await getActiveCompanyId();
+  const record = await db.payroll.findOneAsync<Payroll>(companyId, { _id: id });
   if (!record || record.status === "paid") return;
 
-  const cash = await getAccountByCode("1000");
-  const payrollExpense = await getAccountByCode("5100");
+  const cash = await getAccountByCode(companyId, "1000");
+  const payrollExpense = await getAccountByCode(companyId, "5100");
 
   await postJournalEntry(
+    companyId,
     `Payroll for ${record.employeeName} - ${record.month}`,
     [
       { accountId: payrollExpense._id!, accountName: payrollExpense.name, debit: record.netPay, credit: 0 },
@@ -113,7 +125,7 @@ export async function markPayrollPaid(id: string) {
     id
   );
 
-  await db.payroll.updateAsync({ _id: id }, { $set: { status: "paid" } });
+  await db.payroll.updateAsync(companyId, { _id: id }, { $set: { status: "paid" } });
   revalidatePath("/hr/payroll");
   revalidatePath("/accounting/reports");
 }

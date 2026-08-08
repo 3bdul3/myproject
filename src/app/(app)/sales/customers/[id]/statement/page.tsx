@@ -13,11 +13,19 @@ export default async function CustomerStatementPage({ params }: { params: Promis
         title={`Statement of Account — ${customer.nameAr} / ${customer.nameEn}`}
         subtitle={`${customer.customerCode || "—"} · VAT: ${customer.vatNumber || "—"} · CR: ${customer.crNumber || "—"}`}
         action={
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-stone-400">Outstanding (Net)</p>
-            <p className={`text-xl font-bold ${closingBalance > 0 ? "text-red-600" : "text-emerald-600"}`}>
-              {closingBalance.toFixed(2)}
-            </p>
+          <div className="flex items-center gap-4">
+            <a
+              href={`/api/customers/${id}/statement-pdf`}
+              className="text-xs font-medium text-brand-600 hover:underline"
+            >
+              PDF
+            </a>
+            <div className="text-right">
+              <p className="text-xs uppercase tracking-wide text-stone-400">Outstanding (Net)</p>
+              <p className={`text-xl font-bold ${closingBalance > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                {closingBalance.toFixed(2)}
+              </p>
+            </div>
           </div>
         }
       />

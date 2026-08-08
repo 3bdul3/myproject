@@ -11,6 +11,7 @@ import {
   postInvoice,
   recordPayment,
 } from "@/lib/actions/accounting";
+import { getApprovalRequestFor } from "@/lib/actions/approvals";
 import { getCustomer } from "@/lib/actions/crm";
 import { getCompanySettings } from "@/lib/actions/settings";
 import { getZatcaQrDataUrl } from "@/lib/zatca";
@@ -48,14 +49,16 @@ export default async function InvoiceDetailPage({
 
   const id = invoice._id!;
 
-  const [payments, journalEntries, customer, company, { prevNumber, nextNumber }] = await Promise.all([
+  const [payments, journalEntries, customer, company, { prevNumber, nextNumber }, approval] = await Promise.all([
     listPayments(id),
     getInvoiceJournalEntries(id),
     getCustomer(invoice.customerId),
     getCompanySettings(),
     getAdjacentInvoiceNumbers(invoice.docType, invoice.number),
+    invoice.docType === "tax" && invoice.status === "draft" ? getApprovalRequestFor("invoice", id) : null,
   ]);
   const boundRecordPayment = recordPayment.bind(null, id);
+  const needsApproval = approval && approval.status !== "approved";
 
   const isFinalized = invoice.status !== "draft";
   const isTaxDocument = invoice.docType === "tax" || invoice.docType === "credit_note" || invoice.docType === "debit_note";
@@ -120,6 +123,21 @@ export default async function InvoiceDetailPage({
           <div className="overflow-hidden rounded-lg border border-stone-200 shadow-sm">
             <InvoiceDocument invoice={invoice} customer={customer} company={company} qrDataUrl={qrDataUrl} />
           </div>
+
+          {needsApproval && approval && (
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm ${
+                approval.status === "rejected"
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              <p className="font-medium">
+                {approval.status === "rejected" ? "Approval rejected" : "Pending admin/accountant approval"}
+              </p>
+              {approval.note && <p className="mt-1 text-xs">{approval.note}</p>}
+            </div>
+          )}
 
           <Card>
             {invoice.docType === "proforma" && invoice.status === "draft" && (

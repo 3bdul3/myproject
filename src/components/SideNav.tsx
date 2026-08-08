@@ -4,10 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { logoutAction } from "@/lib/actions/auth";
-import type { Role } from "@/types";
+import { setActiveCompany } from "@/lib/actions/companies";
+import NotificationBell, { type LiveAlert } from "@/components/NotificationBell";
+import type { Notification, Role } from "@/types";
 
 const modules = [
   { key: "dashboard", label: "Dashboard", href: "/dashboard", items: [] as Array<{ href: string; label: string }> },
+  {
+    key: "my",
+    label: "My Workspace",
+    href: "/my/leave",
+    items: [
+      { href: "/my/leave", label: "Leave Requests" },
+      { href: "/my/tasks", label: "My Tasks" },
+      { href: "/settings/security", label: "Security" },
+    ],
+  },
   {
     key: "accounting",
     label: "Accounting",
@@ -63,6 +75,13 @@ const modules = [
   },
 ];
 
+const ADMIN_SETTINGS_ITEMS = [
+  { href: "/settings/companies", label: "Companies" },
+  { href: "/settings/users", label: "Users" },
+  { href: "/settings/audit-log", label: "Audit Log" },
+  { href: "/settings/backups", label: "Backups" },
+];
+
 const EXECUTIVE_MODULE = {
   key: "executive",
   label: "Executive",
@@ -83,18 +102,43 @@ export default function SideNav({
   userName,
   userRole,
   logoDataUrl,
+  activeCompanyName,
+  activeCompanyId,
+  companies,
+  notifications,
+  unreadCount,
+  liveAlerts,
 }: {
   userName: string;
   userRole: Role | "";
   logoDataUrl?: string;
+  activeCompanyName: string;
+  activeCompanyId?: string;
+  /** Only passed for admin/accountant — presence of >1 entry is what shows the switcher. */
+  companies?: Array<{ _id: string; name: string }>;
+  notifications: Notification[];
+  unreadCount: number;
+  liveAlerts?: LiveAlert[];
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const visibleModules = userRole === "admin" ? [...modules, EXECUTIVE_MODULE] : modules;
+  const canSeeApprovals = userRole === "admin" || userRole === "accountant" || userRole === "hr";
+
+  const visibleModules = (userRole === "admin" ? [...modules, EXECUTIVE_MODULE] : modules).map((m) => {
+    if (m.key === "settings" && userRole === "admin") {
+      return { ...m, items: [...m.items, ...ADMIN_SETTINGS_ITEMS] };
+    }
+    if (m.key === "my" && canSeeApprovals) {
+      return { ...m, items: [...m.items, { href: "/approvals", label: "Approvals" }] };
+    }
+    return m;
+  });
 
   const activeModule =
     visibleModules.find((m) => m.key !== "dashboard" && pathname.startsWith(`/${m.key}`)) ?? visibleModules[0];
+
+  const showSwitcher = !!companies && companies.length > 1;
 
   return (
     <>
@@ -114,15 +158,32 @@ export default function SideNav({
         <div className="flex h-14 flex-shrink-0 items-center gap-2 border-b border-navy-700 px-4">
           {logoDataUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={logoDataUrl} alt="Company logo" className="h-8 w-8 rounded-lg object-contain" />
+            <img src={logoDataUrl} alt="Company logo" className="h-8 w-8 flex-shrink-0 rounded-lg object-contain" />
           ) : (
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-              M
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
+              {activeCompanyName.charAt(0).toUpperCase() || "?"}
             </span>
           )}
-          <div className="leading-tight">
-            <p className="text-sm font-semibold text-white">MSAA</p>
-            <p className="text-[10px] text-navy-200">Event Management Agency</p>
+          <div className="min-w-0 leading-tight">
+            {showSwitcher ? (
+              <form action={setActiveCompany}>
+                <select
+                  name="companyId"
+                  defaultValue={activeCompanyId}
+                  onChange={(e) => e.currentTarget.form?.requestSubmit()}
+                  className="w-full truncate border-none bg-transparent p-0 text-sm font-semibold text-white outline-none"
+                >
+                  {companies!.map((c) => (
+                    <option key={c._id} value={c._id} className="text-stone-900">
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </form>
+            ) : (
+              <p className="truncate text-sm font-semibold text-white">{activeCompanyName}</p>
+            )}
+            <p className="text-[10px] text-navy-200">ERP System</p>
           </div>
         </div>
 
@@ -177,6 +238,7 @@ export default function SideNav({
         </button>
 
         <div className="ml-auto flex items-center gap-3">
+          <NotificationBell notifications={notifications} unreadCount={unreadCount} liveAlerts={liveAlerts} />
           <div className="hidden text-right sm:block">
             <p className="text-sm font-medium text-stone-800">{userName}</p>
             <p className="text-xs text-stone-400">{ROLE_LABELS[userRole] ?? userRole}</p>

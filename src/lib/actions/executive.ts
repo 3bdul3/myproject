@@ -4,6 +4,7 @@ import { getAccountByCode, listInvoicesByType } from "@/lib/actions/accounting";
 import { listBills } from "@/lib/actions/ap";
 import { listEmployees } from "@/lib/actions/hr";
 import { getStockLevels } from "@/lib/actions/inventory";
+import { getActiveCompanyId } from "@/lib/authz";
 import type { Employee, Invoice } from "@/types";
 
 function todayStr() {
@@ -50,8 +51,9 @@ export async function getCashPositionProjection(horizonDays: 30 | 45 | 60 = 30):
   const today = todayStr();
   const horizonEnd = addDays(today, horizonDays);
 
+  const companyId = await getActiveCompanyId();
   const [cash, taxInvoices, bills, employees] = await Promise.all([
-    getAccountByCode("1000"),
+    getAccountByCode(companyId, "1000"),
     listInvoicesByType("tax"),
     listBills(),
     listEmployees(),

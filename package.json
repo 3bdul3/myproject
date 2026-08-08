@@ -7,13 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "backup": "node scripts/backup.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@seald-io/nedb": "^4.1.2",
     "bcryptjs": "^3.0.3",
     "next": "16.2.10",
-    "next-auth": "^5.0.0-beta.31",
+    "next-auth": "5.0.0-beta.31",
+    "nodemailer": "^7.0.13",
+    "otpauth": "^9.5.1",
     "puppeteer-core": "^25.3.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
@@ -21,8 +25,10 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",

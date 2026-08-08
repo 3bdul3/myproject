@@ -1,13 +1,27 @@
-import { createLead, deleteLead, listLeads } from "@/lib/actions/crm";
+import Link from "next/link";
+import { createLead, deleteLead, restoreLead, listLeads, listArchivedLeads } from "@/lib/actions/crm";
 import { PageHeader, Card, Field, SubmitButton } from "@/components/ui";
 import LeadStatusSelect from "@/components/LeadStatusSelect";
 
-export default async function LeadsPage() {
-  const leads = await listLeads();
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const { view } = await searchParams;
+  const showArchived = view === "archived";
+  const leads = showArchived ? await listArchivedLeads() : await listLeads();
 
   return (
     <div>
-      <PageHeader title="Leads" subtitle="Sales pipeline and lead qualification" />
+      <PageHeader
+        title="Leads"
+        subtitle="Sales pipeline and lead qualification"
+        action={
+          <Link
+            href={showArchived ? "/sales/leads" : "/sales/leads?view=archived"}
+            className="text-xs font-medium text-brand-600 hover:underline"
+          >
+            {showArchived ? "Back to active leads" : "View archived"}
+          </Link>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="p-0 overflow-x-auto lg:col-span-2">
@@ -30,16 +44,23 @@ export default async function LeadsPage() {
                   <td className="px-4 py-3 text-stone-500">{lead.source}</td>
                   <td className="px-4 py-3 text-right font-mono">{lead.value.toFixed(2)}</td>
                   <td className="px-4 py-3">
-                    <LeadStatusSelect id={lead._id!} status={lead.status} />
+                    {showArchived ? (
+                      <span className="capitalize text-stone-500">{lead.status}</span>
+                    ) : (
+                      <LeadStatusSelect id={lead._id!} status={lead.status} />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <form
                       action={async () => {
                         "use server";
-                        await deleteLead(lead._id!);
+                        if (showArchived) await restoreLead(lead._id!);
+                        else await deleteLead(lead._id!);
                       }}
                     >
-                      <button className="text-xs text-red-500 hover:underline">Delete</button>
+                      <button className={`text-xs hover:underline ${showArchived ? "text-brand-600" : "text-red-500"}`}>
+                        {showArchived ? "Restore" : "Delete"}
+                      </button>
                     </form>
                   </td>
                 </tr>
@@ -47,7 +68,7 @@ export default async function LeadsPage() {
               {leads.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-stone-400">
-                    No leads yet.
+                    {showArchived ? "No archived leads." : "No leads yet."}
                   </td>
                 </tr>
               )}

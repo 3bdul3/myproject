@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
+import { getActiveCompanyId } from "@/lib/authz";
 import type { InvoiceDocType } from "@/types";
 
 const PREFILLED_ROWS = 300;
@@ -61,9 +62,10 @@ function buildSheet(
 }
 
 export async function GET() {
+  const companyId = await getActiveCompanyId();
   const [taxCount, proformaCount, creditCount, debitCount] = await Promise.all(
     (["tax", "proforma", "credit_note", "debit_note"] as InvoiceDocType[]).map((docType) =>
-      db.invoices.countAsync({ docType })
+      db.invoices.countAsync(companyId, { docType })
     )
   );
 

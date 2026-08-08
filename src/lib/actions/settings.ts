@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { getActiveCompanyId } from "@/lib/authz";
 import type { CompanySettings } from "@/types";
 
 const emptySettings: Omit<CompanySettings, "_id" | "createdAt"> = {
@@ -25,13 +26,15 @@ const emptySettings: Omit<CompanySettings, "_id" | "createdAt"> = {
 };
 
 export async function getCompanySettings(): Promise<CompanySettings> {
-  const existing = await db.companySettings.findOneAsync<CompanySettings>({});
+  const companyId = await getActiveCompanyId();
+  const existing = await db.companies.findOneAsync<CompanySettings>({ _id: companyId });
   if (existing) return existing;
   return { ...emptySettings, createdAt: new Date().toISOString() };
 }
 
 export async function updateCompanySettings(formData: FormData) {
-  const existing = await db.companySettings.findOneAsync<CompanySettings>({});
+  const companyId = await getActiveCompanyId();
+  const existing = await db.companies.findOneAsync<CompanySettings>({ _id: companyId });
 
   let logoDataUrl = existing?.logoDataUrl;
   const logoFile = formData.get("logo");
@@ -62,9 +65,12 @@ export async function updateCompanySettings(formData: FormData) {
   };
 
   if (existing) {
-    await db.companySettings.updateAsync({ _id: existing._id }, { $set: data });
+    await db.companies.updateAsync({ _id: existing._id }, { $set: data });
   } else {
-    await db.companySettings.insertAsync({ ...data, createdAt: new Date().toISOString() });
+    // Existing companyId (from getActiveCompanyId) has no row yet — shouldn't normally
+    // happen since Company creation always inserts a row, but insert defensively with the
+    // same _id so this settings form still lands on the right company.
+    await db.companies.insertAsync({ ...data, _id: companyId, createdAt: new Date().toISOString() });
   }
 
   revalidatePath("/settings/company");

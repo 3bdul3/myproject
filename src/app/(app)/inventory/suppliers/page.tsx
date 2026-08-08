@@ -1,12 +1,23 @@
-import { createSupplier, listSuppliers } from "@/lib/actions/inventory";
-import { PageHeader, Card, Field, SubmitButton } from "@/components/ui";
+import {
+  createSupplier,
+  listSuppliers,
+  setSupplierPortalCredentials,
+  setSupplierPortalActive,
+  setSupplierSuspended,
+} from "@/lib/actions/inventory";
+import { PageHeader, Card, Field, SubmitButton, Badge } from "@/components/ui";
 
-export default async function SuppliersPage() {
+export default async function SuppliersPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const suppliers = await listSuppliers();
 
   return (
     <div>
       <PageHeader title="Suppliers" subtitle="Vendor directory" />
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="p-0 overflow-x-auto lg:col-span-2">
@@ -19,6 +30,8 @@ export default async function SuppliersPage() {
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3">Address</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Portal Access</th>
               </tr>
             </thead>
             <tbody>
@@ -30,11 +43,79 @@ export default async function SuppliersPage() {
                   <td className="px-4 py-3 text-stone-500">{s.email}</td>
                   <td className="px-4 py-3 text-stone-500">{s.phone}</td>
                   <td className="px-4 py-3 text-stone-500">{s.address}</td>
+                  <td className="px-4 py-3">
+                    <form action={setSupplierSuspended.bind(null, s._id!, !s.suspended)} className="flex items-center gap-1.5">
+                      <Badge text={s.suspended ? "Suspended" : "Active"} tone={s.suspended ? "red" : "green"} />
+                      <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+                        {s.suspended ? "Reactivate" : "Suspend"}
+                      </button>
+                    </form>
+                  </td>
+                  <td className="px-4 py-3">
+                    {s.portalUsername ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-stone-600">{s.portalUsername}</span>
+                          <Badge text={s.portalActive ? "Active" : "Disabled"} tone={s.portalActive ? "green" : "slate"} />
+                        </div>
+                        <form action={setSupplierPortalActive.bind(null, s._id!, !s.portalActive)}>
+                          <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+                            {s.portalActive ? "Disable" : "Enable"}
+                          </button>
+                        </form>
+                        <details>
+                          <summary className="cursor-pointer text-xs font-medium text-brand-600">Reset password</summary>
+                          <form action={setSupplierPortalCredentials.bind(null, s._id!)} className="mt-2 space-y-1.5">
+                            <input
+                              type="text"
+                              name="portalUsername"
+                              defaultValue={s.portalUsername}
+                              required
+                              className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                            />
+                            <input
+                              type="password"
+                              name="portalPassword"
+                              placeholder="New password"
+                              required
+                              className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                            />
+                            <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+                              Save
+                            </button>
+                          </form>
+                        </details>
+                      </div>
+                    ) : (
+                      <details>
+                        <summary className="cursor-pointer text-xs font-medium text-brand-600">Set up access</summary>
+                        <form action={setSupplierPortalCredentials.bind(null, s._id!)} className="mt-2 space-y-1.5">
+                          <input
+                            type="text"
+                            name="portalUsername"
+                            placeholder="Username"
+                            required
+                            className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                          />
+                          <input
+                            type="password"
+                            name="portalPassword"
+                            placeholder="Password"
+                            required
+                            className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                          />
+                          <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+                            Create login
+                          </button>
+                        </form>
+                      </details>
+                    )}
+                  </td>
                 </tr>
               ))}
               {suppliers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-stone-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-stone-400">
                     No suppliers yet.
                   </td>
                 </tr>

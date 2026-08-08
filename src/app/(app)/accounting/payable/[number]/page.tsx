@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBillByNumber, getBillJournalEntries, listSupplierPayments, postBill, recordSupplierPayment } from "@/lib/actions/ap";
+import { getApprovalRequestFor } from "@/lib/actions/approvals";
 import { PageHeader, Card, Field, Select, SubmitButton, Badge } from "@/components/ui";
 
 const statusTone: Record<string, "green" | "red" | "indigo" | "amber" | "slate"> = {
@@ -10,14 +11,26 @@ const statusTone: Record<string, "green" | "red" | "indigo" | "amber" | "slate">
   paid: "green",
 };
 
-export default async function BillDetailPage({ params }: { params: Promise<{ number: string }> }) {
+export default async function BillDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ number: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { number } = await params;
+  const { error } = await searchParams;
   const bill = await getBillByNumber(number);
   if (!bill) notFound();
 
   const id = bill._id!;
-  const [journalEntries, payments] = await Promise.all([getBillJournalEntries(id), listSupplierPayments(id)]);
+  const [journalEntries, payments, approval] = await Promise.all([
+    getBillJournalEntries(id),
+    listSupplierPayments(id),
+    bill.status === "draft" ? getApprovalRequestFor("bill", id) : null,
+  ]);
   const boundRecordPayment = recordSupplierPayment.bind(null, id);
+  const needsApproval = approval && approval.status !== "approved";
 
   return (
     <div>
@@ -29,11 +42,40 @@ export default async function BillDetailPage({ params }: { params: Promise<{ num
           { label: "Accounts Payable", href: "/accounting/payable" },
           { label: bill.number },
         ]}
-        action={<Badge text={bill.status} tone={statusTone[bill.status]} />}
+        action={
+          <div className="flex items-center gap-3">
+            <a
+              href={`/api/supplier-bills/${bill.number}/pdf`}
+              className="text-xs font-medium text-brand-600 hover:underline"
+            >
+              PDF
+            </a>
+            <Badge text={bill.status} tone={statusTone[bill.status]} />
+          </div>
+        }
       />
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {needsApproval && approval && (
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm ${
+                approval.status === "rejected"
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              <p className="font-medium">
+                {approval.status === "rejected" ? "Approval rejected" : "Pending admin/accountant approval"}
+              </p>
+              {approval.note && <p className="mt-1 text-xs">{approval.note}</p>}
+            </div>
+          )}
+
           <Card>
             <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
               <div>

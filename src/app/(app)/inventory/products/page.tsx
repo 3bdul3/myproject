@@ -1,61 +1,29 @@
-import { createProduct, deleteProduct } from "@/lib/actions/inventory";
-import { getStockLevels } from "@/lib/actions/inventory";
+import Link from "next/link";
+import { createProduct, deleteProduct, restoreProduct, getStockLevels, listArchivedProducts } from "@/lib/actions/inventory";
 import { PageHeader, Card, Field, SubmitButton, Badge } from "@/components/ui";
 
-export default async function ProductsPage() {
-  const stockLevels = await getStockLevels();
+export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const { view } = await searchParams;
+  const showArchived = view === "archived";
 
   return (
     <div>
-      <PageHeader title="Products" subtitle="Product catalog and pricing" />
+      <PageHeader
+        title="Products"
+        subtitle="Product catalog and pricing"
+        action={
+          <Link
+            href={showArchived ? "/inventory/products" : "/inventory/products?view=archived"}
+            className="text-xs font-medium text-brand-600 hover:underline"
+          >
+            {showArchived ? "Back to active products" : "View archived"}
+          </Link>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="p-0 overflow-x-auto lg:col-span-2">
-          <table className="w-full text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50 text-left text-xs uppercase text-stone-400">
-              <tr>
-                <th className="px-4 py-3">SKU</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3 text-right">Cost</th>
-                <th className="px-4 py-3 text-right">Price</th>
-                <th className="px-4 py-3 text-right">Stock</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {stockLevels.map(({ product: p, quantity, lowStock }) => (
-                <tr key={p._id} className="border-b border-stone-100 last:border-0">
-                  <td className="px-4 py-3 font-mono text-stone-500">{p.sku}</td>
-                  <td className="px-4 py-3 font-medium text-stone-800">{p.name}</td>
-                  <td className="px-4 py-3 text-stone-500">{p.category}</td>
-                  <td className="px-4 py-3 text-right font-mono">{p.costPrice.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-mono">{p.salePrice.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={lowStock ? "font-semibold text-red-600" : ""}>{quantity}</span>{" "}
-                    {lowStock ? <Badge text="low stock" tone="red" /> : <Badge text="healthy" tone="green" />}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <form
-                      action={async () => {
-                        "use server";
-                        await deleteProduct(p._id!);
-                      }}
-                    >
-                      <button className="text-xs text-red-500 hover:underline">Delete</button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
-              {stockLevels.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-stone-400">
-                    No products yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {showArchived ? <ArchivedProductsTable /> : <ActiveProductsTable />}
         </Card>
 
         <div className="space-y-6">
@@ -77,5 +45,104 @@ export default async function ProductsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+async function ActiveProductsTable() {
+  const stockLevels = await getStockLevels();
+
+  return (
+    <table className="w-full text-sm">
+      <thead className="border-b border-stone-200 bg-stone-50 text-left text-xs uppercase text-stone-400">
+        <tr>
+          <th className="px-4 py-3">SKU</th>
+          <th className="px-4 py-3">Name</th>
+          <th className="px-4 py-3">Category</th>
+          <th className="px-4 py-3 text-right">Cost</th>
+          <th className="px-4 py-3 text-right">Price</th>
+          <th className="px-4 py-3 text-right">Stock</th>
+          <th className="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {stockLevels.map(({ product: p, quantity, lowStock }) => (
+          <tr key={p._id} className="border-b border-stone-100 last:border-0">
+            <td className="px-4 py-3 font-mono text-stone-500">{p.sku}</td>
+            <td className="px-4 py-3 font-medium text-stone-800">{p.name}</td>
+            <td className="px-4 py-3 text-stone-500">{p.category}</td>
+            <td className="px-4 py-3 text-right font-mono">{p.costPrice.toFixed(2)}</td>
+            <td className="px-4 py-3 text-right font-mono">{p.salePrice.toFixed(2)}</td>
+            <td className="px-4 py-3 text-right">
+              <span className={lowStock ? "font-semibold text-red-600" : ""}>{quantity}</span>{" "}
+              {lowStock ? <Badge text="low stock" tone="red" /> : <Badge text="healthy" tone="green" />}
+            </td>
+            <td className="px-4 py-3 text-right">
+              <form
+                action={async () => {
+                  "use server";
+                  await deleteProduct(p._id!);
+                }}
+              >
+                <button className="text-xs text-red-500 hover:underline">Delete</button>
+              </form>
+            </td>
+          </tr>
+        ))}
+        {stockLevels.length === 0 && (
+          <tr>
+            <td colSpan={7} className="px-4 py-8 text-center text-stone-400">
+              No products yet.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+async function ArchivedProductsTable() {
+  const products = await listArchivedProducts();
+
+  return (
+    <table className="w-full text-sm">
+      <thead className="border-b border-stone-200 bg-stone-50 text-left text-xs uppercase text-stone-400">
+        <tr>
+          <th className="px-4 py-3">SKU</th>
+          <th className="px-4 py-3">Name</th>
+          <th className="px-4 py-3">Category</th>
+          <th className="px-4 py-3 text-right">Cost</th>
+          <th className="px-4 py-3 text-right">Price</th>
+          <th className="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {products.map((p) => (
+          <tr key={p._id} className="border-b border-stone-100 last:border-0">
+            <td className="px-4 py-3 font-mono text-stone-500">{p.sku}</td>
+            <td className="px-4 py-3 font-medium text-stone-800">{p.name}</td>
+            <td className="px-4 py-3 text-stone-500">{p.category}</td>
+            <td className="px-4 py-3 text-right font-mono">{p.costPrice.toFixed(2)}</td>
+            <td className="px-4 py-3 text-right font-mono">{p.salePrice.toFixed(2)}</td>
+            <td className="px-4 py-3 text-right">
+              <form
+                action={async () => {
+                  "use server";
+                  await restoreProduct(p._id!);
+                }}
+              >
+                <button className="text-xs font-medium text-brand-600 hover:underline">Restore</button>
+              </form>
+            </td>
+          </tr>
+        ))}
+        {products.length === 0 && (
+          <tr>
+            <td colSpan={6} className="px-4 py-8 text-center text-stone-400">
+              No archived products.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
   );
 }

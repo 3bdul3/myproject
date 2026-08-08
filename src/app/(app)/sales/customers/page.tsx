@@ -1,14 +1,45 @@
 import Link from "next/link";
-import { createCustomer, deleteCustomer, importCustomersFromExcel, listCustomers } from "@/lib/actions/crm";
-import { PageHeader, Card, Field, SubmitButton } from "@/components/ui";
+import {
+  createCustomer,
+  deleteCustomer,
+  restoreCustomer,
+  importCustomersFromExcel,
+  listCustomers,
+  listArchivedCustomers,
+  setCustomerPortalCredentials,
+  setCustomerPortalActive,
+  setCustomerSuspended,
+} from "@/lib/actions/crm";
+import { PageHeader, Card, Field, SubmitButton, Badge } from "@/components/ui";
 import { SAUDI_ARABIA_BILINGUAL } from "@/lib/customer";
 
-export default async function CustomersPage() {
-  const customers = await listCustomers();
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; view?: string }>;
+}) {
+  const { error, view } = await searchParams;
+  const showArchived = view === "archived";
+  const customers = showArchived ? await listArchivedCustomers() : await listCustomers();
 
   return (
     <div>
-      <PageHeader title="Customers" subtitle="Customer relationship and tax compliance records" />
+      <PageHeader
+        title="Customers"
+        subtitle="Customer relationship and tax compliance records"
+        action={
+          <Link
+            href={showArchived ? "/sales/customers" : "/sales/customers?view=archived"}
+            className="text-xs font-medium text-brand-600 hover:underline"
+          >
+            {showArchived ? "Back to active customers" : "View archived"}
+          </Link>
+        }
+      />
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="p-0 overflow-x-auto lg:col-span-2">
@@ -21,6 +52,8 @@ export default async function CustomersPage() {
                 <th className="px-4 py-3">CR No.</th>
                 <th className="px-4 py-3">Contact</th>
                 <th className="px-4 py-3">Invoice Email</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Portal Access</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -39,27 +72,106 @@ export default async function CustomersPage() {
                     <p>{c.contactMobile}</p>
                   </td>
                   <td className="px-4 py-3 text-stone-500">{c.invoiceEmail}</td>
+                  <td className="px-4 py-3">
+                    {showArchived ? (
+                      <Badge text="Archived" tone="slate" />
+                    ) : (
+                      <form action={setCustomerSuspended.bind(null, c._id!, !c.suspended)} className="flex items-center gap-1.5">
+                        <Badge text={c.suspended ? "Suspended" : "Active"} tone={c.suspended ? "red" : "green"} />
+                        <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+                          {c.suspended ? "Reactivate" : "Suspend"}
+                        </button>
+                      </form>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {c.portalUsername ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-stone-600">{c.portalUsername}</span>
+                          <Badge text={c.portalActive ? "Active" : "Disabled"} tone={c.portalActive ? "green" : "slate"} />
+                        </div>
+                        <form action={setCustomerPortalActive.bind(null, c._id!, !c.portalActive)}>
+                          <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+                            {c.portalActive ? "Disable" : "Enable"}
+                          </button>
+                        </form>
+                        <details>
+                          <summary className="cursor-pointer text-xs font-medium text-brand-600">Reset password</summary>
+                          <form action={setCustomerPortalCredentials.bind(null, c._id!)} className="mt-2 space-y-1.5">
+                            <input
+                              type="text"
+                              name="portalUsername"
+                              defaultValue={c.portalUsername}
+                              required
+                              className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                            />
+                            <input
+                              type="password"
+                              name="portalPassword"
+                              placeholder="New password"
+                              required
+                              className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                            />
+                            <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+                              Save
+                            </button>
+                          </form>
+                        </details>
+                      </div>
+                    ) : (
+                      <details>
+                        <summary className="cursor-pointer text-xs font-medium text-brand-600">Set up access</summary>
+                        <form action={setCustomerPortalCredentials.bind(null, c._id!)} className="mt-2 space-y-1.5">
+                          <input
+                            type="text"
+                            name="portalUsername"
+                            placeholder="Username"
+                            required
+                            className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                          />
+                          <input
+                            type="password"
+                            name="portalPassword"
+                            placeholder="Password"
+                            required
+                            className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                          />
+                          <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
+                            Create login
+                          </button>
+                        </form>
+                      </details>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      <Link
-                        href={`/sales/customers/${c._id}/statement`}
-                        className="text-xs font-medium text-brand-600 hover:underline"
-                      >
-                        Statement
-                      </Link>
-                      <Link
-                        href={`/sales/customers/${c._id}/documents`}
-                        className="text-xs font-medium text-brand-600 hover:underline"
-                      >
-                        Documents
-                      </Link>
+                      {!showArchived && (
+                        <>
+                          <Link
+                            href={`/sales/customers/${c._id}/statement`}
+                            className="text-xs font-medium text-brand-600 hover:underline"
+                          >
+                            Statement
+                          </Link>
+                          <Link
+                            href={`/sales/customers/${c._id}/documents`}
+                            className="text-xs font-medium text-brand-600 hover:underline"
+                          >
+                            Documents
+                          </Link>
+                        </>
+                      )}
                       <form
                         action={async () => {
                           "use server";
-                          await deleteCustomer(c._id!);
+                          if (showArchived) await restoreCustomer(c._id!);
+                          else await deleteCustomer(c._id!);
                         }}
                       >
-                        <button className="text-xs text-red-500 hover:underline">Delete</button>
+                        <button className={`text-xs hover:underline ${showArchived ? "text-brand-600" : "text-red-500"}`}>
+                          {showArchived ? "Restore" : "Delete"}
+                        </button>
                       </form>
                     </div>
                   </td>
@@ -67,8 +179,8 @@ export default async function CustomersPage() {
               ))}
               {customers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-stone-400">
-                    No customers yet.
+                  <td colSpan={9} className="px-4 py-8 text-center text-stone-400">
+                    {showArchived ? "No archived customers." : "No customers yet."}
                   </td>
                 </tr>
               )}

@@ -2,7 +2,8 @@ import { createBill } from "@/lib/actions/ap";
 import { listPurchaseOrders, listSuppliers } from "@/lib/actions/inventory";
 import { PageHeader, Card, Field, Select, SubmitButton } from "@/components/ui";
 
-export default async function NewBillPage() {
+export default async function NewBillPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const [suppliers, purchaseOrders] = await Promise.all([listSuppliers(), listPurchaseOrders()]);
   const receivedOrders = purchaseOrders.filter((po) => po.status === "received");
 
@@ -17,6 +18,10 @@ export default async function NewBillPage() {
           { label: "New" },
         ]}
       />
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
 
       <Card>
         {suppliers.length === 0 ? (

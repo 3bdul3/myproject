@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
 import type { InvoiceDocType } from "@/types";
 
-export async function getNextDocNumber(docType: InvoiceDocType): Promise<string> {
-  const count = await db.invoices.countAsync({ docType });
+export async function getNextDocNumber(companyId: string, docType: InvoiceDocType): Promise<string> {
+  const count = await db.invoices.countAsync(companyId, { docType });
   const seq = String(count + 1).padStart(5, "0");
   switch (docType) {
     case "proforma":

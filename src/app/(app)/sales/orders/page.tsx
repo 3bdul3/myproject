@@ -9,7 +9,8 @@ const statusTone: Record<string, "green" | "red" | "indigo" | "amber" | "slate">
   cancelled: "red",
 };
 
-export default async function SalesOrdersPage() {
+export default async function SalesOrdersPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const [orders, customers, products] = await Promise.all([
     listSalesOrders(),
     listCustomers(),
@@ -22,6 +23,10 @@ export default async function SalesOrdersPage() {
         title="Sales Orders"
         subtitle="Confirming an order deducts stock. Issue the tax invoice from Accounting once the matching Proposal is signed."
       />
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="p-0 overflow-x-auto lg:col-span-2">

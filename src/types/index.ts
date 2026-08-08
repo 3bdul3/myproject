@@ -11,6 +11,20 @@ export interface User extends Base {
   email: string;
   passwordHash: string;
   role: Role;
+  /** Required for locked roles (sales/hr/warehouse/transaction_manager); unused for admin/accountant, who access every company. */
+  companyId?: string;
+  /** TOTP secret, set once during enrollment and never cleared until re-enrolled. */
+  totpSecret?: string;
+  /** Only true once a code has been confirmed against totpSecret — enrollment alone doesn't require it at login. */
+  totpEnabled?: boolean;
+  /** Admin-set account suspension — a disabled user can't log in until re-enabled. */
+  disabled?: boolean;
+  /** Admin-assigned short login code — an alternative to email at sign-in. Globally unique like email. */
+  loginCode?: string;
+  /** Forces a password change on next login — set when an admin creates the account or resets its password. */
+  mustChangePassword?: boolean;
+  /** When the password was last changed — used to enforce the periodic rotation policy. */
+  passwordChangedAt?: string;
 }
 
 export type AccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
@@ -18,7 +32,10 @@ export type AccountType = "asset" | "liability" | "equity" | "revenue" | "expens
 export type AccountGroup = "ar" | "ap_trade" | "ap_zakat" | "general";
 
 export interface Account extends Base {
+  companyId?: string;
   code: string;
+  /** Derived `${companyId}:${code}` key, unique-indexed, since NeDB has no native compound unique index. */
+  codeKey?: string;
   name: string;
   type: AccountType;
   group: AccountGroup;
@@ -33,6 +50,7 @@ export interface JournalLine {
 }
 
 export interface JournalEntry extends Base {
+  companyId?: string;
   number: string;
   date: string;
   memo: string;
@@ -52,6 +70,7 @@ export interface LineItem {
 }
 
 export interface Invoice extends Base {
+  companyId?: string;
   docType: InvoiceDocType;
   number: string;
   customerId: string;
@@ -78,6 +97,7 @@ export interface Invoice extends Base {
 }
 
 export interface Payment extends Base {
+  companyId?: string;
   invoiceId: string;
   amount: number;
   date: string;
@@ -90,6 +110,7 @@ export interface Payment extends Base {
 export type ProposalStatus = "draft" | "sent" | "signed";
 
 export interface Proposal extends Base {
+  companyId?: string;
   number: string;
   customerId: string;
   customerName: string;
@@ -103,6 +124,7 @@ export interface Proposal extends Base {
 }
 
 export interface CustomerDocuments extends Base {
+  companyId?: string;
   customerId: string;
   crOrNationalIdFileDataUrl?: string;
   taxCertificateFileDataUrl?: string;
@@ -120,6 +142,7 @@ export interface NationalAddress {
 }
 
 export interface Customer extends Base {
+  companyId?: string;
   customerCode: string;
   nameAr: string;
   nameEn: string;
@@ -131,22 +154,34 @@ export interface Customer extends Base {
   contactMobile: string;
   invoiceEmail: string;
   infoEmail?: string;
+  /** Customer portal login — optional, set by an admin from the Customers page. */
+  portalUsername?: string;
+  portalPasswordHash?: string;
+  portalActive?: boolean;
+  /** Soft-delete flag — "deleting" a customer archives it instead of removing the record. */
+  archived?: boolean;
+  /** Admin-set hold — blocks new sales orders/invoices for this customer without hiding the record. */
+  suspended?: boolean;
 }
 
 export type LeadStatus = "new" | "qualified" | "won" | "lost";
 
 export interface Lead extends Base {
+  companyId?: string;
   name: string;
   contact: string;
   source: string;
   status: LeadStatus;
   value: number;
   notes?: string;
+  /** Soft-delete flag — "deleting" a lead archives it instead of removing the record. */
+  archived?: boolean;
 }
 
 export type SalesOrderStatus = "draft" | "confirmed" | "invoiced" | "cancelled";
 
 export interface SalesOrder extends Base {
+  companyId?: string;
   number: string;
   customerId: string;
   customerName: string;
@@ -158,16 +193,22 @@ export interface SalesOrder extends Base {
 }
 
 export interface Product extends Base {
+  companyId?: string;
   sku: string;
+  /** Derived `${companyId}:${sku}` key, unique-indexed, since NeDB has no native compound unique index. */
+  skuKey?: string;
   name: string;
   category: string;
   unit: string;
   costPrice: number;
   salePrice: number;
   reorderLevel: number;
+  /** Soft-delete flag — "deleting" a product archives it instead of removing the record. */
+  archived?: boolean;
 }
 
 export interface Warehouse extends Base {
+  companyId?: string;
   name: string;
   location: string;
 }
@@ -175,6 +216,7 @@ export interface Warehouse extends Base {
 export type StockMovementType = "in" | "out" | "adjust";
 
 export interface StockMovement extends Base {
+  companyId?: string;
   productId: string;
   productName: string;
   warehouseId: string;
@@ -185,17 +227,33 @@ export interface StockMovement extends Base {
 }
 
 export interface Supplier extends Base {
+  companyId?: string;
   name: string;
   vatNumber?: string;
   crNumber?: string;
   email: string;
   phone: string;
   address?: string;
+  /** Supplier portal login — optional, set by an admin from the Suppliers page. */
+  portalUsername?: string;
+  portalPasswordHash?: string;
+  portalActive?: boolean;
+  /** Admin-set hold — blocks new purchase orders/bills for this supplier without hiding the record. */
+  suspended?: boolean;
+}
+
+export interface SupplierDocuments extends Base {
+  companyId?: string;
+  supplierId: string;
+  crFileDataUrl?: string;
+  vatCertificateFileDataUrl?: string;
+  bankLetterFileDataUrl?: string;
 }
 
 export type PurchaseOrderStatus = "draft" | "ordered" | "received" | "cancelled";
 
 export interface PurchaseOrder extends Base {
+  companyId?: string;
   number: string;
   supplierId: string;
   supplierName: string;
@@ -209,6 +267,7 @@ export interface PurchaseOrder extends Base {
 export type BillStatus = "draft" | "posted" | "partial" | "paid";
 
 export interface Bill extends Base {
+  companyId?: string;
   number: string;
   supplierId: string;
   supplierName: string;
@@ -226,6 +285,7 @@ export interface Bill extends Base {
 }
 
 export interface SupplierPayment extends Base {
+  companyId?: string;
   billId: string;
   amount: number;
   date: string;
@@ -235,6 +295,7 @@ export interface SupplierPayment extends Base {
 export type EmployeeStatus = "active" | "on_leave" | "terminated";
 
 export interface Employee extends Base {
+  companyId?: string;
   name: string;
   email: string;
   phone: string;
@@ -243,9 +304,12 @@ export interface Employee extends Base {
   hireDate: string;
   salary: number;
   status: EmployeeStatus;
+  /** Links this employee to their own login, so they can submit leave requests for themselves. */
+  userId?: string;
 }
 
 export interface Department extends Base {
+  companyId?: string;
   name: string;
   managerName?: string;
 }
@@ -253,6 +317,7 @@ export interface Department extends Base {
 export type AttendanceStatus = "present" | "absent" | "late" | "leave";
 
 export interface Attendance extends Base {
+  companyId?: string;
   employeeId: string;
   employeeName: string;
   date: string;
@@ -264,6 +329,7 @@ export interface Attendance extends Base {
 export type PayrollStatus = "draft" | "paid";
 
 export interface Payroll extends Base {
+  companyId?: string;
   employeeId: string;
   employeeName: string;
   month: string;
@@ -274,7 +340,8 @@ export interface Payroll extends Base {
   status: PayrollStatus;
 }
 
-export interface CompanySettings extends Base {
+/** A single tenant/business. `db.companies` is the tenant table itself — not company-scoped like everything else. */
+export interface Company extends Base {
   nameAr: string;
   nameEn: string;
   vatNumber: string;
@@ -285,4 +352,77 @@ export interface CompanySettings extends Base {
   bankAccountNumber: string;
   bankIban: string;
   logoDataUrl?: string;
+}
+
+/** @deprecated use {@link Company} */
+export type CompanySettings = Company;
+
+export type NotificationType =
+  | "approval_requested"
+  | "approval_approved"
+  | "approval_rejected"
+  | "leave_requested"
+  | "leave_decided";
+
+export interface Notification extends Base {
+  companyId?: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  href?: string;
+  read: boolean;
+}
+
+export type ApprovalTargetType = "invoice" | "bill" | "purchase_order";
+
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+
+export interface ApprovalRequest extends Base {
+  companyId?: string;
+  targetType: ApprovalTargetType;
+  targetId: string;
+  targetNumber: string;
+  requestedByUserId: string;
+  requestedByName: string;
+  status: ApprovalStatus;
+  decidedByUserId?: string;
+  decidedByName?: string;
+  decidedAt?: string;
+  note?: string;
+}
+
+export interface LeaveRequest extends Base {
+  companyId?: string;
+  employeeId: string;
+  employeeName: string;
+  requestedByUserId: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+  status: ApprovalStatus;
+  decidedByUserId?: string;
+  decidedByName?: string;
+  decidedAt?: string;
+  note?: string;
+}
+
+export interface TaskItem extends Base {
+  companyId?: string;
+  userId: string;
+  title: string;
+  dueDate?: string;
+  done: boolean;
+  doneAt?: string;
+}
+
+export interface AuditLogEntry extends Base {
+  companyId?: string;
+  userId: string;
+  userName: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  summary: string;
 }

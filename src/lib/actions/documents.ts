@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { getActiveCompanyId } from "@/lib/authz";
 import type { CustomerDocuments } from "@/types";
 
 export async function getCustomerDocuments(customerId: string) {
-  const existing = await db.customerDocuments.findOneAsync<CustomerDocuments>({ customerId });
+  const companyId = await getActiveCompanyId();
+  const existing = await db.customerDocuments.findOneAsync<CustomerDocuments>(companyId, { customerId });
   if (existing) return existing;
   return { customerId, createdAt: new Date().toISOString() } as CustomerDocuments;
 }
@@ -16,7 +18,8 @@ async function fileToDataUrl(file: File) {
 }
 
 export async function uploadCustomerDocuments(customerId: string, formData: FormData) {
-  const existing = await db.customerDocuments.findOneAsync<CustomerDocuments>({ customerId });
+  const companyId = await getActiveCompanyId();
+  const existing = await db.customerDocuments.findOneAsync<CustomerDocuments>(companyId, { customerId });
 
   const patch: Partial<CustomerDocuments> = {};
 
@@ -30,9 +33,9 @@ export async function uploadCustomerDocuments(customerId: string, formData: Form
   if (kycFile instanceof File && kycFile.size > 0) patch.kycFileDataUrl = await fileToDataUrl(kycFile);
 
   if (existing) {
-    await db.customerDocuments.updateAsync({ _id: existing._id }, { $set: patch });
+    await db.customerDocuments.updateAsync(companyId, { _id: existing._id }, { $set: patch });
   } else {
-    await db.customerDocuments.insertAsync<CustomerDocuments>({
+    await db.customerDocuments.insertAsync<CustomerDocuments>(companyId, {
       customerId,
       ...patch,
       createdAt: new Date().toISOString(),
