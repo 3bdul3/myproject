@@ -2,6 +2,9 @@ import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
 
 export const authConfig: NextAuthConfig = {
+  // Required behind any reverse proxy that isn't auto-detected (Railway, Render, Fly.io, Docker,
+  // ...) — without this, Auth.js refuses requests because it can't verify the `host` header itself.
+  trustHost: true,
   pages: { signIn: "/login" },
   providers: [],
   callbacks: {
