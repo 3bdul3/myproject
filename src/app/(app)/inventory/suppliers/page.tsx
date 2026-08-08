@@ -6,6 +6,7 @@ import {
   setSupplierSuspended,
 } from "@/lib/actions/inventory";
 import { PageHeader, Card, Field, SubmitButton, Badge } from "@/components/ui";
+import PasswordField from "@/components/PasswordField";
 
 export default async function SuppliersPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -73,13 +74,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
                               required
                               className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
                             />
-                            <input
-                              type="password"
-                              name="portalPassword"
-                              placeholder="New password"
-                              required
-                              className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
-                            />
+                            <PasswordField name="portalPassword" placeholder="New password" required compact />
                             <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
                               Save
                             </button>
@@ -97,13 +92,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
                             required
                             className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
                           />
-                          <input
-                            type="password"
-                            name="portalPassword"
-                            placeholder="Password"
-                            required
-                            className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
-                          />
+                          <PasswordField name="portalPassword" placeholder="Password" required compact />
                           <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
                             Create login
                           </button>

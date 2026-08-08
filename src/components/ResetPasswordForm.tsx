@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { resetPassword } from "@/lib/actions/passwordReset";
+import PasswordField from "@/components/PasswordField";
 
 export default function ResetPasswordForm({ token }: { token: string }) {
   const [state, formAction, pending] = useActionState(resetPassword, undefined);
@@ -31,26 +32,14 @@ export default function ResetPasswordForm({ token }: { token: string }) {
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="token" value={token} />
-      <div>
-        <label className="mb-1 block text-sm font-medium text-stone-700">New password</label>
-        <input
-          name="password"
-          type="password"
-          required
-          minLength={8}
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-stone-700">Confirm password</label>
-        <input
-          name="confirmPassword"
-          type="password"
-          required
-          minLength={8}
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-        />
-      </div>
+      <PasswordField label="New password" name="password" required minLength={8} autoComplete="new-password" />
+      <PasswordField
+        label="Confirm password"
+        name="confirmPassword"
+        required
+        minLength={8}
+        autoComplete="new-password"
+      />
 
       {state?.error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>}
 

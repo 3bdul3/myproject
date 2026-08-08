@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { loginAction } from "@/lib/actions/auth";
+import PasswordField from "@/components/PasswordField";
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(loginAction, undefined);
@@ -39,17 +40,13 @@ export default function LoginPage() {
                   className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
                 />
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-stone-700">Password</label>
-                <input
-                  name="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                />
-              </div>
+              <PasswordField
+                label="Password"
+                name="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </>
           ) : (
             <>

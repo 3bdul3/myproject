@@ -12,6 +12,7 @@ import { listCompanies } from "@/lib/actions/companies";
 import { adminDisableTotp } from "@/lib/actions/twoFactor";
 import { PageHeader, Card, Field, SubmitButton, Badge } from "@/components/ui";
 import RoleCompanyFields from "@/components/RoleCompanyFields";
+import PasswordField from "@/components/PasswordField";
 import type { Employee } from "@/types";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -156,13 +157,12 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                           {u.mustChangePassword ? "Pending change" : "Reset"}
                         </summary>
                         <form action={resetUserPassword.bind(null, u._id!)} className="mt-2 space-y-1.5">
-                          <input
-                            type="password"
+                          <PasswordField
                             name="newPassword"
                             placeholder="Temporary password"
                             required
                             minLength={8}
-                            className="w-full rounded-lg border border-stone-300 px-2 py-1 text-xs outline-none"
+                            compact
                           />
                           <button type="submit" className="text-xs font-medium text-brand-600 hover:underline">
                             Set temporary password

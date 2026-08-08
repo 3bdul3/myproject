@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PasswordField from "@/components/PasswordField";
 
 export function Breadcrumb({ items }: { items: Array<{ label: string; href?: string }> }) {
   return (
@@ -68,6 +69,19 @@ export function Field({
   placeholder?: string;
 }) {
   const isDate = type === "date";
+
+  if (type === "password") {
+    return (
+      <PasswordField
+        label={label}
+        labelClassName="mb-1 block text-xs font-medium text-stone-600"
+        name={name}
+        required={required}
+        placeholder={placeholder}
+        defaultValue={defaultValue as string | undefined}
+      />
+    );
+  }
 
   return (
     <div>
