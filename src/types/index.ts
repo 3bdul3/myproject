@@ -87,6 +87,8 @@ export interface Invoice extends Base {
   items: LineItem[];
   discount?: number;
   subtotal: number;
+  /** VAT rate applied to this document (0, 0.05, or 0.15) — defaults to 0.15 (TAX_RATE) for documents created before this field existed. */
+  taxRate?: number;
   tax: number;
   total: number;
   amountPaid: number;
@@ -277,6 +279,8 @@ export interface Bill extends Base {
   date: string;
   dueDate: string;
   hasVat: boolean;
+  /** The VAT rate actually applied (0, 0.05, or 0.15) — defaults to 0.15 for bills created before this field existed, when hasVat is true. */
+  vatRate?: number;
   subtotal: number;
   vat: number;
   total: number;

@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { TAX_RATE, TAX_RATES } from "@/lib/constants";
 import type { LineItem } from "@/types";
 
 export default function InvoiceItemsInput({ showDiscount = false }: { showDiscount?: boolean }) {
   const [items, setItems] = useState<LineItem[]>([{ description: "", qty: 1, price: 0 }]);
   const [discount, setDiscount] = useState(0);
+  const [taxRate, setTaxRate] = useState<number>(TAX_RATE);
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.price, 0);
   const taxable = Math.max(subtotal - discount, 0);
-  const tax = Math.round(taxable * 0.15 * 100) / 100;
+  const tax = Math.round(taxable * taxRate * 100) / 100;
   const total = taxable + tax;
 
   function update(index: number, patch: Partial<LineItem>) {
@@ -19,6 +21,7 @@ export default function InvoiceItemsInput({ showDiscount = false }: { showDiscou
   return (
     <div>
       <input type="hidden" name="items" value={JSON.stringify(items)} />
+      <input type="hidden" name="taxRate" value={taxRate} />
       <div className="space-y-2">
         {items.map((item, i) => (
           <div key={i} className="grid grid-cols-12 gap-2">
@@ -88,8 +91,21 @@ export default function InvoiceItemsInput({ showDiscount = false }: { showDiscou
             <span>{taxable.toFixed(2)}</span>
           </div>
         )}
-        <div className="flex justify-between text-stone-500">
-          <span>Tax (15%)</span>
+        <div className="flex items-center justify-between text-stone-500">
+          <label className="flex items-center gap-2">
+            <span>Tax rate</span>
+            <select
+              value={taxRate}
+              onChange={(e) => setTaxRate(Number(e.target.value))}
+              className="rounded-lg border border-stone-300 bg-white px-2 py-1 text-sm outline-none"
+            >
+              {TAX_RATES.map((rate) => (
+                <option key={rate} value={rate}>
+                  {(rate * 100).toFixed(0)}%
+                </option>
+              ))}
+            </select>
+          </label>
           <span>{tax.toFixed(2)}</span>
         </div>
         <div className="flex justify-between font-semibold text-stone-800">

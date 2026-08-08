@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db, nextNumber } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveCompanyId } from "@/lib/authz";
+import { TAX_RATES } from "@/lib/constants";
 import { getAccountByCode, postJournalEntry } from "@/lib/actions/accounting";
 import { ensureApprovalRequest } from "@/lib/actions/approvals";
 import { logAudit } from "@/lib/actions/auditLog";
@@ -39,9 +40,11 @@ export async function createBill(formData: FormData) {
     ? await db.purchaseOrders.findOneAsync<{ number: string }>(companyId, { _id: purchaseOrderId })
     : null;
 
-  const hasVat = formData.get("hasVat") === "on";
+  const rawVatRate = Number(formData.get("vatRate"));
+  const vatRate = (TAX_RATES as readonly number[]).includes(rawVatRate) ? rawVatRate : 0.15;
+  const hasVat = vatRate > 0;
   const subtotal = Number(formData.get("subtotal") || 0);
-  const vat = hasVat ? Math.round(subtotal * 0.15 * 100) / 100 : 0;
+  const vat = hasVat ? Math.round(subtotal * vatRate * 100) / 100 : 0;
   const total = subtotal + vat;
 
   const count = await db.bills.countAsync(companyId, {});
@@ -57,6 +60,7 @@ export async function createBill(formData: FormData) {
     date: String(formData.get("date")),
     dueDate: String(formData.get("dueDate")),
     hasVat,
+    vatRate,
     subtotal,
     vat,
     total,

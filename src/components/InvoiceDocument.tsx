@@ -99,6 +99,7 @@ export default function InvoiceDocument({
   const labels = DOC_LABELS[invoice.docType];
   const isTaxDocument = invoice.docType === "tax" || invoice.docType === "credit_note" || invoice.docType === "debit_note";
   const discount = invoice.discount ?? 0;
+  const taxRate = invoice.taxRate ?? TAX_RATE;
   const showBank = isTaxDocument;
   const showQr = !!qrDataUrl;
 
@@ -202,7 +203,7 @@ export default function InvoiceDocument({
           <tbody>
             {invoice.items.map((item, i) => {
               const amount = item.qty * item.price;
-              const lineTax = Math.round(amount * TAX_RATE * 100) / 100;
+              const lineTax = Math.round(amount * taxRate * 100) / 100;
               return (
                 <tr key={i} className="border-b border-stone-100 last:border-0">
                   <td className="py-2">{i + 1}</td>
@@ -210,7 +211,7 @@ export default function InvoiceDocument({
                   <td className="py-2 text-right font-mono">{item.price.toFixed(2)}</td>
                   <td className="py-2 text-right">{item.qty}</td>
                   <td className="py-2 text-right font-mono">{amount.toFixed(2)}</td>
-                  <td className="py-2 text-right font-mono">{(TAX_RATE * 100).toFixed(0)}%</td>
+                  <td className="py-2 text-right font-mono">{(taxRate * 100).toFixed(0)}%</td>
                   <td className="py-2 text-right font-mono">{lineTax.toFixed(2)}</td>
                   <td className="py-2 text-right font-mono">{(amount + lineTax).toFixed(2)}</td>
                 </tr>
@@ -231,7 +232,7 @@ export default function InvoiceDocument({
             </div>
           )}
           <div className="flex justify-between text-stone-500">
-            <span dir="rtl">ضريبة القيمة المضافة / VAT (15%)</span>
+            <span dir="rtl">ضريبة القيمة المضافة / VAT ({(taxRate * 100).toFixed(0)}%)</span>
             <span className="font-mono">{invoice.tax.toFixed(2)}</span>
           </div>
           <div className="flex justify-between border-t border-stone-200 pt-1 font-semibold text-stone-800">

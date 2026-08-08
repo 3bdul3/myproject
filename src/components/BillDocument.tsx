@@ -65,7 +65,7 @@ export default function BillDocument({
           </div>
           {bill.hasVat && (
             <div className="flex justify-between text-stone-500">
-              <span>VAT</span>
+              <span>VAT ({((bill.vatRate ?? 0.15) * 100).toFixed(0)}%)</span>
               <span className="font-mono">{bill.vat.toFixed(2)}</span>
             </div>
           )}

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
 import { getActiveCompanyId } from "@/lib/authz";
-import { TAX_RATE } from "@/lib/constants";
+import { TAX_RATE, TAX_RATES } from "@/lib/constants";
 import { getNextDocNumber, periodErrorMessage } from "@/lib/invoiceNumbering";
 import type { Customer, Invoice, InvoiceDocType, LineItem } from "@/types";
 
@@ -66,7 +66,13 @@ export async function importInvoicesFromExcel(formData: FormData) {
       const grossSubtotal = qty * price;
       const discount = docType === "tax" || docType === "proforma" ? Number(row.discount || 0) : 0;
       const taxable = grossSubtotal - discount;
-      const tax = Math.round(taxable * TAX_RATE * 100) / 100;
+      const rawRateText = String(row.taxRate ?? "").trim();
+      const rawRate = Number(rawRateText);
+      const taxRate =
+        rawRateText && Number.isFinite(rawRate) && (TAX_RATES as readonly number[]).includes(rawRate / 100)
+          ? rawRate / 100
+          : TAX_RATE;
+      const tax = Math.round(taxable * taxRate * 100) / 100;
       const total = taxable + tax;
       const dueDate = String(row.dueDate || "").trim() || date;
       const number = await getNextDocNumber(companyId, docType);
@@ -82,6 +88,7 @@ export async function importInvoicesFromExcel(formData: FormData) {
         items,
         discount,
         subtotal: grossSubtotal,
+        taxRate,
         tax,
         total,
         amountPaid: 0,

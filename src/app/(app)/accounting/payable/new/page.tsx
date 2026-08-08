@@ -1,6 +1,7 @@
 import { createBill } from "@/lib/actions/ap";
 import { listPurchaseOrders, listSuppliers } from "@/lib/actions/inventory";
 import { PageHeader, Card, Field, Select, SubmitButton } from "@/components/ui";
+import { TAX_RATES } from "@/lib/constants";
 
 export default async function NewBillPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -47,12 +48,17 @@ export default async function NewBillPage({ searchParams }: { searchParams: Prom
               <Field label="Bill Date" name="date" type="date" required />
               <Field label="Due Date" name="dueDate" type="date" required />
               <Field label="Subtotal (excl. VAT)" name="subtotal" type="number" step="0.01" required />
+              <Select
+                label="Input VAT Rate"
+                name="vatRate"
+                defaultValue="0.15"
+                options={TAX_RATES.map((rate) => ({ value: String(rate), label: `${(rate * 100).toFixed(0)}%` }))}
+              />
             </div>
-
-            <label className="flex items-center gap-2 text-sm text-stone-600">
-              <input type="checkbox" name="hasVat" className="h-4 w-4 rounded border-stone-300" />
-              Supplier is VAT-registered (adds 15% input VAT, reclaimable from ZATCA)
-            </label>
+            <p className="text-xs text-stone-500">
+              VAT charged by a VAT-registered supplier is reclaimable input VAT — choose 0% if the supplier isn&apos;t
+              VAT-registered.
+            </p>
 
             <SubmitButton label="Create Bill" />
           </form>

@@ -1,9 +1,7 @@
-import puppeteer from "puppeteer-core";
 import { getInvoiceByNumber } from "@/lib/actions/accounting";
+import { launchPdfBrowser } from "@/lib/pdfBrowser";
 
 export const runtime = "nodejs";
-
-const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
 export async function GET(request: Request, { params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
@@ -15,10 +13,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ numb
   const cookieHeader = request.headers.get("cookie") ?? "";
   const printUrl = new URL(`/print/invoices/${invoice._id}`, request.url);
 
-  const browser = await puppeteer.launch({
-    executablePath: CHROME_PATH,
-    headless: true,
-  });
+  const browser = await launchPdfBrowser();
 
   try {
     const page = await browser.newPage();

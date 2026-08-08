@@ -15,6 +15,7 @@ const INVOICE_HEADERS = [
   "qty",
   "price",
   "discount",
+  "taxRate (0, 5, or 15 — blank = 15)",
 ];
 const INVOICE_EXAMPLE = [
   "",
@@ -26,10 +27,19 @@ const INVOICE_EXAMPLE = [
   1,
   15000,
   0,
+  15,
 ];
-const INVOICE_DATA_END_COL = "I";
+const INVOICE_DATA_END_COL = "J";
 
-const NOTE_HEADERS = ["noteNumber (auto)", "relatedInvoiceNumber", "date", "description", "qty", "price"];
+const NOTE_HEADERS = [
+  "noteNumber (auto)",
+  "relatedInvoiceNumber",
+  "date",
+  "description",
+  "qty",
+  "price",
+  "taxRate (0, 5, or 15 — blank = 15)",
+];
 const NOTE_EXAMPLE = [
   "",
   "TAX_INV_00001",
@@ -37,8 +47,9 @@ const NOTE_EXAMPLE = [
   "Price adjustment (EXAMPLE - delete this row)",
   1,
   500,
+  15,
 ];
-const NOTE_DATA_END_COL = "F";
+const NOTE_DATA_END_COL = "G";
 
 function buildSheet(
   headers: string[],

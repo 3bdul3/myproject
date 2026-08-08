@@ -6,7 +6,7 @@ import { db, nextNumber } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveCompanyId } from "@/lib/authz";
 import { customerDisplayName } from "@/lib/customer";
-import { TAX_RATE, TAX_INVOICE_APPROVAL_THRESHOLD } from "@/lib/constants";
+import { TAX_RATE, TAX_RATES, TAX_INVOICE_APPROVAL_THRESHOLD } from "@/lib/constants";
 import { getNextDocNumber, periodErrorMessage } from "@/lib/invoiceNumbering";
 import { ensureApprovalRequest } from "@/lib/actions/approvals";
 import { logAudit } from "@/lib/actions/auditLog";
@@ -25,6 +25,12 @@ import type {
   Payment,
   Proposal,
 } from "@/types";
+
+/** Reads the selected VAT rate off a submitted invoice form, falling back to the standard rate for anything not in the allowed set. */
+function taxRateFromFormData(formData: FormData): number {
+  const raw = Number(formData.get("taxRate"));
+  return (TAX_RATES as readonly number[]).includes(raw) ? raw : TAX_RATE;
+}
 
 export async function getMissingRequirementsForTaxInvoice(customerId: string, proposalId: string) {
   const companyId = await getActiveCompanyId();
@@ -176,7 +182,8 @@ export async function createProformaInvoice(formData: FormData) {
 
   const grossSubtotal = items.reduce((sum, i) => sum + i.qty * i.price, 0);
   const taxable = grossSubtotal - discount;
-  const tax = Math.round(taxable * TAX_RATE * 100) / 100;
+  const taxRate = taxRateFromFormData(formData);
+  const tax = Math.round(taxable * taxRate * 100) / 100;
   const total = taxable + tax;
   const number = await getNextDocNumber(companyId, "proforma");
 
@@ -195,6 +202,7 @@ export async function createProformaInvoice(formData: FormData) {
     items,
     discount,
     subtotal: grossSubtotal,
+    taxRate,
     tax,
     total,
     amountPaid: 0,
@@ -235,7 +243,8 @@ export async function createTaxInvoice(formData: FormData) {
 
   const grossSubtotal = items.reduce((sum, i) => sum + i.qty * i.price, 0);
   const taxable = grossSubtotal - discount;
-  const tax = Math.round(taxable * TAX_RATE * 100) / 100;
+  const taxRate = taxRateFromFormData(formData);
+  const tax = Math.round(taxable * taxRate * 100) / 100;
   const total = taxable + tax;
   const number = await getNextDocNumber(companyId, "tax");
 
@@ -256,6 +265,7 @@ export async function createTaxInvoice(formData: FormData) {
     items,
     discount,
     subtotal: grossSubtotal,
+    taxRate,
     tax,
     total,
     amountPaid: 0,
@@ -302,6 +312,7 @@ export async function convertProformaToTaxInvoice(proformaId: string) {
     items: proforma.items,
     discount: proforma.discount,
     subtotal: proforma.subtotal,
+    taxRate: proforma.taxRate,
     tax: proforma.tax,
     total: proforma.total,
     amountPaid: 0,
@@ -330,7 +341,8 @@ async function createNote(companyId: string, formData: FormData, docType: "credi
   const items: LineItem[] = JSON.parse(String(formData.get("items") || "[]"));
 
   const subtotal = items.reduce((sum, i) => sum + i.qty * i.price, 0);
-  const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
+  const taxRate = taxRateFromFormData(formData);
+  const tax = Math.round(subtotal * taxRate * 100) / 100;
   const total = subtotal + tax;
   const number = await getNextDocNumber(companyId, docType);
 
@@ -343,6 +355,7 @@ async function createNote(companyId: string, formData: FormData, docType: "credi
     dueDate: date,
     items,
     subtotal,
+    taxRate,
     tax,
     total,
     amountPaid: 0,

@@ -87,8 +87,8 @@ export default async function BillDetailPage({
                 <p className="text-stone-700">{bill.dueDate}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-stone-400">VAT Registered Supplier</p>
-                <p className="text-stone-700">{bill.hasVat ? "Yes" : "No"}</p>
+                <p className="text-xs uppercase tracking-wide text-stone-400">Input VAT Rate</p>
+                <p className="text-stone-700">{((bill.vatRate ?? (bill.hasVat ? 0.15 : 0)) * 100).toFixed(0)}%</p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-stone-400">Purchase Order</p>
@@ -102,7 +102,7 @@ export default async function BillDetailPage({
                 <span className="font-mono">{bill.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-stone-500">
-                <span>Input VAT</span>
+                <span>Input VAT ({((bill.vatRate ?? (bill.hasVat ? 0.15 : 0)) * 100).toFixed(0)}%)</span>
                 <span className="font-mono">{bill.vat.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-semibold text-stone-800">
