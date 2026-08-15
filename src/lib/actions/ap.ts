@@ -104,13 +104,13 @@ export async function postBill(id: string, formData: FormData) {
     : await getAccountByCode(companyId, "5200");
 
   const lines: JournalLine[] = [
-    { accountId: debitAccount._id!, accountName: debitAccount.name, debit: bill.subtotal, credit: 0 },
+    { accountId: debitAccount._id!, accountName: debitAccount.nameEn || debitAccount.nameAr || debitAccount.name || "", debit: bill.subtotal, credit: 0 },
   ];
   if (bill.hasVat && bill.vat > 0) {
     const vatReceivable = await getAccountByCode(companyId, "1150");
-    lines.push({ accountId: vatReceivable._id!, accountName: vatReceivable.name, debit: bill.vat, credit: 0 });
+    lines.push({ accountId: vatReceivable._id!, accountName: vatReceivable.nameEn || vatReceivable.nameAr || vatReceivable.name || "", debit: bill.vat, credit: 0 });
   }
-  lines.push({ accountId: apTrade._id!, accountName: apTrade.name, debit: 0, credit: bill.total });
+  lines.push({ accountId: apTrade._id!, accountName: apTrade.nameEn || apTrade.nameAr || apTrade.name || "", debit: 0, credit: bill.total });
 
   await postJournalEntry(companyId, memo, lines, "bill", id);
   await db.bills.updateAsync(companyId, { _id: id }, { $set: { status: "posted" } });
@@ -158,8 +158,8 @@ export async function recordSupplierPayment(billId: string, formData: FormData) 
     companyId,
     `Payment to ${bill.supplierName} for ${bill.number}`,
     [
-      { accountId: apTrade._id!, accountName: apTrade.name, debit: amount, credit: 0 },
-      { accountId: cashOrBank._id!, accountName: cashOrBank.name, debit: 0, credit: amount },
+      { accountId: apTrade._id!, accountName: apTrade.nameEn || apTrade.nameAr || apTrade.name || "", debit: amount, credit: 0 },
+      { accountId: cashOrBank._id!, accountName: cashOrBank.nameEn || cashOrBank.nameAr || cashOrBank.name || "", debit: 0, credit: amount },
     ],
     "payment",
     billId

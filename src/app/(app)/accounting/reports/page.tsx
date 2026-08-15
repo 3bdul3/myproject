@@ -52,7 +52,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               <p className="mb-1 text-xs font-semibold uppercase text-stone-400">{type}s</p>
               {byType(type).map((a) => (
                 <div key={a._id} className="flex justify-between py-0.5 text-sm">
-                  <span className="text-stone-600">{a.name}</span>
+                  <span className="text-stone-600">{a.nameEn}</span>
                   <span className="font-mono">{a.balance.toFixed(2)}</span>
                 </div>
               ))}
@@ -67,7 +67,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               <p className="mb-1 text-xs font-semibold uppercase text-stone-400">{type}s</p>
               {byType(type).map((a) => (
                 <div key={a._id} className="flex justify-between py-0.5 text-sm">
-                  <span className="text-stone-600">{a.name}</span>
+                  <span className="text-stone-600">{a.nameEn}</span>
                   <span className="font-mono">{a.balance.toFixed(2)}</span>
                 </div>
               ))}

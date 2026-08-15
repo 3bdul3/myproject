@@ -9,10 +9,10 @@ const typeTone: Record<string, "green" | "red" | "indigo" | "amber" | "slate"> =
   expense: "red",
 };
 
-const postingTypeTone: Record<string, "blue" | "green" | "purple"> = {
-  header: "blue",
+const postingTypeTone: Record<string, "green" | "amber" | "red"> = {
+  header: "amber",
   posting: "green",
-  control: "purple",
+  control: "red",
 };
 
 export default async function TrialBalancePage() {

@@ -30,6 +30,9 @@ export interface User extends Base {
 // Account Classification (Financial Statement Categories)
 export type AccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
 
+// Account Group (Legacy - for backward compatibility)
+export type AccountGroup = "general" | "ar" | "ap_trade" | "ap_zakat";
+
 // Account Sub-classification (More detailed categorization)
 export type AccountCategory = 
   | "cash" 
@@ -61,8 +64,12 @@ export interface Account extends Base {
   nameAr: string;
   /** Account name in English */
   nameEn: string;
+  /** Legacy name field for backward compatibility */
+  name?: string;
   /** Financial statement classification */
   type: AccountType;
+  /** Legacy group field for backward compatibility */
+  group?: AccountGroup;
   /** Detailed account category */
   category: AccountCategory;
   /** Sub-ledger association */

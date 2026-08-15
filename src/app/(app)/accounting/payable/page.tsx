@@ -74,7 +74,7 @@ export default async function AccountsPayablePage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <StatCard label="Accounts Payable (Trade)" value={summary.apTradeBalance.toFixed(2)} />
             {summary.zakatAccounts.map((a) => (
-              <StatCard key={a._id} label={a.name} value={a.balance.toFixed(2)} />
+              <StatCard key={a._id} label={a.nameEn} value={a.balance.toFixed(2)} />
             ))}
           </div>
           <Card>

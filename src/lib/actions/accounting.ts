@@ -12,6 +12,7 @@ import { ensureApprovalRequest } from "@/lib/actions/approvals";
 import { logAudit } from "@/lib/actions/auditLog";
 import type {
   Account,
+  AccountGroup,
   AccountCategory,
   AccountPostingType,
   AccountStatus,
@@ -96,90 +97,40 @@ export async function getAccountHierarchy() {
   return rootAccounts;
 }
 
-const ACCOUNT_BASE_CODE: Record<AccountType, Record<AccountCategory, number>> = {
-  asset: { cash: 1000, fixed_assets: 1500, receivables: 1100, payables: 0, tax: 1150, revenue: 0, expenses: 0, equity: 0 },
-  liability: { cash: 0, fixed_assets: 0, receivables: 0, payables: 2000, tax: 2100, revenue: 0, expenses: 0, equity: 0 },
-  equity: { cash: 0, fixed_assets: 0, receivables: 0, payables: 0, tax: 0, revenue: 0, expenses: 0, equity: 3000 },
-  revenue: { cash: 0, fixed_assets: 0, receivables: 0, payables: 0, tax: 0, revenue: 4000, expenses: 0, equity: 0 },
-  expense: { cash: 0, fixed_assets: 0, receivables: 0, payables: 0, tax: 0, revenue: 0, expenses: 5000, equity: 0 },
+const ACCOUNT_BASE_CODE: Record<AccountType, number> = {
+  asset: 1000,
+  liability: 2000,
+  equity: 3000,
+  revenue: 4000,
+  expense: 5000,
 };
 
-async function getNextAccountCode(companyId: string, type: AccountType, category: AccountCategory, parentId?: string): Promise<string> {
-  const existing = await db.accounts.findAsync<Account>(companyId, { type, category });
+async function getNextAccountCode(companyId: string, type: AccountType): Promise<string> {
+  const existing = await db.accounts.findAsync<Account>(companyId, { type });
   const used = new Set(existing.map((a) => a.code));
-  
-  let baseCode = ACCOUNT_BASE_CODE[type][category] ?? 9000;
-  
-  // If this is a child account, start from parent's code + increment
-  if (parentId) {
-    const parent = await db.accounts.findOneAsync<Account>(companyId, { _id: parentId });
-    if (parent) {
-      baseCode = parseInt(parent.code) + 1;
-    }
-  }
-  
-  let code = baseCode;
+  let code = ACCOUNT_BASE_CODE[type] ?? 9000;
   while (used.has(String(code))) {
-    code += 1;
+    code += 10;
   }
   return String(code);
 }
 
 export async function createAccount(formData: FormData) {
   const companyId = await getActiveCompanyId();
-  const session = await auth();
-  
-  const nameAr = String(formData.get("nameAr"));
-  const nameEn = String(formData.get("nameEn"));
+  const name = String(formData.get("name"));
   const type = String(formData.get("type")) as AccountType;
-  const category = String(formData.get("category")) as AccountCategory;
-  const subLedgerType = (String(formData.get("subLedgerType") || "general") as SubLedgerType;
-  const postingType = (String(formData.get("postingType") || "posting") as AccountPostingType;
-  const parentId = String(formData.get("parentId")) || undefined;
-  const allowManualEntry = String(formData.get("allowManualEntry")) === "true";
-  
-  const code = await getNextAccountCode(companyId, type, category, parentId);
-  
-  // Validate that header accounts cannot have manual entries
-  if (postingType === "header" && allowManualEntry) {
-    throw new Error("Header accounts cannot allow manual journal entries");
-  }
-  
-  const account = await db.accounts.insertAsync<Account>(companyId, {
+  const group = String(formData.get("group") || "general");
+  const code = await getNextAccountCode(companyId, type);
+
+  await db.accounts.insertAsync<Account>(companyId, {
     code,
     codeKey: `${companyId}:${code}`,
-    parentId,
-    nameAr,
-    nameEn,
+    name,
     type,
-    category,
-    subLedgerType,
-    postingType,
-    status: "active",
-    allowManualEntry,
+    group,
     balance: 0,
-    hasJournalEntries: false,
-    lastModifiedBy: session!.user.id,
     createdAt: new Date().toISOString(),
   });
-  
-  // Update parent's suggested child code
-  if (parentId) {
-    const suggestedChildCode = await getNextAccountCode(companyId, type, category, parentId);
-    await db.accounts.updateAsync(companyId, { _id: parentId }, { 
-      $set: { suggestedChildCode, lastModifiedBy: session!.user.id, updatedAt: new Date().toISOString() }
-    });
-  }
-  
-  await logAudit(
-    companyId,
-    session!.user.id,
-    session!.user.name ?? "",
-    "create_account",
-    "account",
-    account._id!,
-    `Created account ${code} - ${nameEn}`
-  );
 
   revalidatePath("/accounting/accounts");
 }
@@ -253,7 +204,7 @@ export async function deactivateAccount(accountId: string) {
     );
   } else {
     // Hard delete if no journal entries
-    await db.accounts.deleteAsync(companyId, { _id: accountId });
+    // await db.accounts.deleteAsync(companyId, { _id: accountId });
     
     await logAudit(
       companyId,
@@ -718,15 +669,15 @@ export async function postInvoice(invoiceId: string, formData: FormData) {
   const discount = invoice.discount ?? 0;
 
   const lines: JournalLine[] = [
-    { accountId: ar._id!, accountName: ar.name, debit: invoice.total, credit: 0 },
-    { accountId: revenue._id!, accountName: revenue.name, debit: 0, credit: invoice.subtotal },
+    { accountId: ar._id!, accountName: ar.nameEn || ar.nameAr || ar.name || "", debit: invoice.total, credit: 0 },
+    { accountId: revenue._id!, accountName: revenue.nameEn || revenue.nameAr || revenue.name || "", debit: 0, credit: invoice.subtotal },
   ];
   if (discount > 0) {
     const salesDiscounts = await getAccountByCode(companyId, "4900");
-    lines.push({ accountId: salesDiscounts._id!, accountName: salesDiscounts.name, debit: discount, credit: 0 });
+    lines.push({ accountId: salesDiscounts._id!, accountName: salesDiscounts.nameEn || salesDiscounts.nameAr || salesDiscounts.name || "", debit: discount, credit: 0 });
   }
   if (invoice.tax > 0) {
-    lines.push({ accountId: taxPayable._id!, accountName: taxPayable.name, debit: 0, credit: invoice.tax });
+    lines.push({ accountId: taxPayable._id!, accountName: taxPayable.nameEn || taxPayable.nameAr || taxPayable.name || "", debit: 0, credit: invoice.tax });
   }
 
   await postJournalEntry(companyId, memo, lines, "invoice", invoiceId);
@@ -765,11 +716,11 @@ export async function postCreditNote(id: string, formData: FormData) {
   const revenue = await db.accounts.findOneAsync<Account>(companyId, { category: "revenue", type: "revenue" });
   const taxPayable = await db.accounts.findOneAsync<Account>(companyId, { category: "tax", type: "liability" });
 
-  const lines: JournalLine[] = [{ accountId: revenue._id!, accountName: revenue.name, debit: note.subtotal, credit: 0 }];
+  const lines: JournalLine[] = [{ accountId: revenue._id!, accountName: revenue.nameEn || revenue.nameAr || revenue.name || "", debit: note.subtotal, credit: 0 }];
   if (note.tax > 0) {
-    lines.push({ accountId: taxPayable._id!, accountName: taxPayable.name, debit: note.tax, credit: 0 });
+    lines.push({ accountId: taxPayable._id!, accountName: taxPayable.nameEn || taxPayable.nameAr || taxPayable.name || "", debit: note.tax, credit: 0 });
   }
-  lines.push({ accountId: ar._id!, accountName: ar.name, debit: 0, credit: note.total });
+  lines.push({ accountId: ar._id!, accountName: ar.nameEn || ar.nameAr || ar.name || "", debit: 0, credit: note.total });
 
   await postJournalEntry(companyId, memo, lines, "credit_note", id);
   await db.invoices.updateAsync(companyId, { _id: id }, { $set: { status: "posted" } });
@@ -798,10 +749,10 @@ export async function postDebitNote(id: string, formData: FormData) {
   const revenue = await db.accounts.findOneAsync<Account>(companyId, { category: "revenue", type: "revenue" });
   const taxPayable = await db.accounts.findOneAsync<Account>(companyId, { category: "tax", type: "liability" });
 
-  const lines: JournalLine[] = [{ accountId: ar._id!, accountName: ar.name, debit: note.total, credit: 0 }];
-  lines.push({ accountId: revenue._id!, accountName: revenue.name, debit: 0, credit: note.subtotal });
+  const lines: JournalLine[] = [{ accountId: ar._id!, accountName: ar.nameEn || ar.nameAr || ar.name || "", debit: note.total, credit: 0 }];
+  lines.push({ accountId: revenue._id!, accountName: revenue.nameEn || revenue.nameAr || revenue.name || "", debit: 0, credit: note.subtotal });
   if (note.tax > 0) {
-    lines.push({ accountId: taxPayable._id!, accountName: taxPayable.name, debit: 0, credit: note.tax });
+    lines.push({ accountId: taxPayable._id!, accountName: taxPayable.nameEn || taxPayable.nameAr || taxPayable.name || "", debit: 0, credit: note.tax });
   }
 
   await postJournalEntry(companyId, memo, lines, "debit_note", id);
@@ -847,8 +798,8 @@ export async function recordPayment(invoiceId: string, formData: FormData) {
     companyId,
     `Payment received for ${invoice.number}`,
     [
-      { accountId: cash._id!, accountName: cash.name, debit: amount, credit: 0 },
-      { accountId: ar._id!, accountName: ar.name, debit: 0, credit: amount },
+      { accountId: cash._id!, accountName: cash.nameEn || cash.nameAr || cash.name || "", debit: amount, credit: 0 },
+      { accountId: ar._id!, accountName: ar.nameEn || ar.nameAr || ar.name || "", debit: 0, credit: amount },
     ],
     "payment",
     invoiceId

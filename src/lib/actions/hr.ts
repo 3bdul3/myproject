@@ -118,8 +118,8 @@ export async function markPayrollPaid(id: string) {
     companyId,
     `Payroll for ${record.employeeName} - ${record.month}`,
     [
-      { accountId: payrollExpense._id!, accountName: payrollExpense.name, debit: record.netPay, credit: 0 },
-      { accountId: cash._id!, accountName: cash.name, debit: 0, credit: record.netPay },
+      { accountId: payrollExpense._id!, accountName: payrollExpense.nameEn || payrollExpense.nameAr || payrollExpense.name || "", debit: record.netPay, credit: 0 },
+      { accountId: cash._id!, accountName: cash.nameEn || cash.nameAr || cash.name || "", debit: 0, credit: record.netPay },
     ],
     "manual",
     id
