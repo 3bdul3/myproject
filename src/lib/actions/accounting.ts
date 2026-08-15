@@ -12,7 +12,9 @@ import { ensureApprovalRequest } from "@/lib/actions/approvals";
 import { logAudit } from "@/lib/actions/auditLog";
 import type {
   Account,
-  AccountGroup,
+  AccountCategory,
+  AccountPostingType,
+  AccountStatus,
   AccountType,
   Bill,
   Customer,
@@ -24,6 +26,7 @@ import type {
   LineItem,
   Payment,
   Proposal,
+  SubLedgerType,
 } from "@/types";
 
 /** Reads the selected VAT rate off a submitted invoice form, falling back to the standard rate for anything not in the allowed set. */
@@ -66,41 +69,203 @@ export async function listAccounts() {
   return db.accounts.findAsync<Account>(companyId, {}).sort({ code: 1 });
 }
 
-const ACCOUNT_BASE_CODE: Record<AccountType, Partial<Record<AccountGroup, number>>> = {
-  asset: { ar: 1100, general: 1000 },
-  liability: { ap_trade: 2000, ap_zakat: 2050, general: 2200 },
-  equity: { general: 3000 },
-  revenue: { general: 4000 },
-  expense: { general: 5000 },
+export async function getAccountHierarchy() {
+  const companyId = await getActiveCompanyId();
+  const accounts = await db.accounts.findAsync<Account>(companyId, {}).sort({ code: 1 });
+  
+  // Build hierarchy from parent/child relationships
+  const accountMap = new Map<string, Account & { children: Account[] }>();
+  accounts.forEach(account => {
+    accountMap.set(account._id!, { ...account, children: [] });
+  });
+  
+  const rootAccounts: (Account & { children: Account[] })[] = [];
+  
+  accounts.forEach(account => {
+    const node = accountMap.get(account._id!);
+    if (account.parentId) {
+      const parent = accountMap.get(account.parentId);
+      if (parent) {
+        parent.children.push(node!);
+      }
+    } else {
+      rootAccounts.push(node!);
+    }
+  });
+  
+  return rootAccounts;
+}
+
+const ACCOUNT_BASE_CODE: Record<AccountType, Record<AccountCategory, number>> = {
+  asset: { cash: 1000, fixed_assets: 1500, receivables: 1100, payables: 0, tax: 1150, revenue: 0, expenses: 0, equity: 0 },
+  liability: { cash: 0, fixed_assets: 0, receivables: 0, payables: 2000, tax: 2100, revenue: 0, expenses: 0, equity: 0 },
+  equity: { cash: 0, fixed_assets: 0, receivables: 0, payables: 0, tax: 0, revenue: 0, expenses: 0, equity: 3000 },
+  revenue: { cash: 0, fixed_assets: 0, receivables: 0, payables: 0, tax: 0, revenue: 4000, expenses: 0, equity: 0 },
+  expense: { cash: 0, fixed_assets: 0, receivables: 0, payables: 0, tax: 0, revenue: 0, expenses: 5000, equity: 0 },
 };
 
-async function getNextAccountCode(companyId: string, type: AccountType, group: AccountGroup): Promise<string> {
-  const existing = await db.accounts.findAsync<Account>(companyId, { type });
+async function getNextAccountCode(companyId: string, type: AccountType, category: AccountCategory, parentId?: string): Promise<string> {
+  const existing = await db.accounts.findAsync<Account>(companyId, { type, category });
   const used = new Set(existing.map((a) => a.code));
-  let code = ACCOUNT_BASE_CODE[type][group] ?? ACCOUNT_BASE_CODE[type].general ?? 9000;
+  
+  let baseCode = ACCOUNT_BASE_CODE[type][category] ?? 9000;
+  
+  // If this is a child account, start from parent's code + increment
+  if (parentId) {
+    const parent = await db.accounts.findOneAsync<Account>(companyId, { _id: parentId });
+    if (parent) {
+      baseCode = parseInt(parent.code) + 1;
+    }
+  }
+  
+  let code = baseCode;
   while (used.has(String(code))) {
-    code += 10;
+    code += 1;
   }
   return String(code);
 }
 
 export async function createAccount(formData: FormData) {
   const companyId = await getActiveCompanyId();
-  const name = String(formData.get("name"));
+  const session = await auth();
+  
+  const nameAr = String(formData.get("nameAr"));
+  const nameEn = String(formData.get("nameEn"));
   const type = String(formData.get("type")) as AccountType;
-  const group = (String(formData.get("group") || "general") as AccountGroup) ?? "general";
-  const code = await getNextAccountCode(companyId, type, group);
-
-  await db.accounts.insertAsync<Account>(companyId, {
+  const category = String(formData.get("category")) as AccountCategory;
+  const subLedgerType = (String(formData.get("subLedgerType") || "general") as SubLedgerType;
+  const postingType = (String(formData.get("postingType") || "posting") as AccountPostingType;
+  const parentId = String(formData.get("parentId")) || undefined;
+  const allowManualEntry = String(formData.get("allowManualEntry")) === "true";
+  
+  const code = await getNextAccountCode(companyId, type, category, parentId);
+  
+  // Validate that header accounts cannot have manual entries
+  if (postingType === "header" && allowManualEntry) {
+    throw new Error("Header accounts cannot allow manual journal entries");
+  }
+  
+  const account = await db.accounts.insertAsync<Account>(companyId, {
     code,
     codeKey: `${companyId}:${code}`,
-    name,
+    parentId,
+    nameAr,
+    nameEn,
     type,
-    group,
+    category,
+    subLedgerType,
+    postingType,
+    status: "active",
+    allowManualEntry,
     balance: 0,
+    hasJournalEntries: false,
+    lastModifiedBy: session!.user.id,
     createdAt: new Date().toISOString(),
   });
+  
+  // Update parent's suggested child code
+  if (parentId) {
+    const suggestedChildCode = await getNextAccountCode(companyId, type, category, parentId);
+    await db.accounts.updateAsync(companyId, { _id: parentId }, { 
+      $set: { suggestedChildCode, lastModifiedBy: session!.user.id, updatedAt: new Date().toISOString() }
+    });
+  }
+  
+  await logAudit(
+    companyId,
+    session!.user.id,
+    session!.user.name ?? "",
+    "create_account",
+    "account",
+    account._id!,
+    `Created account ${code} - ${nameEn}`
+  );
 
+  revalidatePath("/accounting/accounts");
+}
+
+export async function updateAccount(accountId: string, formData: FormData) {
+  const companyId = await getActiveCompanyId();
+  const session = await auth();
+  
+  const account = await db.accounts.findOneAsync<Account>(companyId, { _id: accountId });
+  if (!account) throw new Error("Account not found");
+  
+  // Prevent deletion of accounts with journal entries
+  if (account.hasJournalEntries) {
+    throw new Error("Cannot modify account that has journal entries");
+  }
+  
+  const nameAr = String(formData.get("nameAr"));
+  const nameEn = String(formData.get("nameEn"));
+  const status = String(formData.get("status")) as AccountStatus;
+  const allowManualEntry = String(formData.get("allowManualEntry")) === "true";
+  
+  await db.accounts.updateAsync(companyId, { _id: accountId }, {
+    $set: {
+      nameAr,
+      nameEn,
+      status,
+      allowManualEntry,
+      lastModifiedBy: session!.user.id,
+      updatedAt: new Date().toISOString(),
+    }
+  });
+  
+  await logAudit(
+    companyId,
+    session!.user.id,
+    session!.user.name ?? "",
+    "update_account",
+    "account",
+    accountId,
+    `Updated account ${account.code} - ${nameEn}`
+  );
+  
+  revalidatePath("/accounting/accounts");
+}
+
+export async function deactivateAccount(accountId: string) {
+  const companyId = await getActiveCompanyId();
+  const session = await auth();
+  
+  const account = await db.accounts.findOneAsync<Account>(companyId, { _id: accountId });
+  if (!account) throw new Error("Account not found");
+  
+  if (account.hasJournalEntries) {
+    // Soft delete - set to inactive instead of removing
+    await db.accounts.updateAsync(companyId, { _id: accountId }, {
+      $set: {
+        status: "inactive",
+        lastModifiedBy: session!.user.id,
+        updatedAt: new Date().toISOString(),
+      }
+    });
+    
+    await logAudit(
+      companyId,
+      session!.user.id,
+      session!.user.name ?? "",
+      "deactivate_account",
+      "account",
+      accountId,
+      `Deactivated account ${account.code} - ${account.nameEn} (had journal entries)`
+    );
+  } else {
+    // Hard delete if no journal entries
+    await db.accounts.deleteAsync(companyId, { _id: accountId });
+    
+    await logAudit(
+      companyId,
+      session!.user.id,
+      session!.user.name ?? "",
+      "delete_account",
+      "account",
+      accountId,
+      `Deleted account ${account.code} - ${account.nameEn} (no journal entries)`
+    );
+  }
+  
   revalidatePath("/accounting/accounts");
 }
 
@@ -385,6 +550,61 @@ export async function getAccountByCode(companyId: string, code: string) {
   return account;
 }
 
+export async function searchAccounts(query: string, filters?: {
+  type?: AccountType;
+  category?: AccountCategory;
+  subLedgerType?: SubLedgerType;
+  status?: AccountStatus;
+  postingType?: AccountPostingType;
+}) {
+  const companyId = await getActiveCompanyId();
+  const accounts = await db.accounts.findAsync<Account>(companyId, {}).sort({ code: 1 });
+  
+  return accounts.filter(account => {
+    // Text search
+    const matchesQuery = !query || 
+      account.nameAr.toLowerCase().includes(query.toLowerCase()) ||
+      account.nameEn.toLowerCase().includes(query.toLowerCase()) ||
+      account.code.includes(query);
+    
+    // Filter by type
+    const matchesType = !filters?.type || account.type === filters.type;
+    
+    // Filter by category
+    const matchesCategory = !filters?.category || account.category === filters.category;
+    
+    // Filter by sub-ledger type
+    const matchesSubLedger = !filters?.subLedgerType || account.subLedgerType === filters.subLedgerType;
+    
+    // Filter by status
+    const matchesStatus = !filters?.status || account.status === filters.status;
+    
+    // Filter by posting type
+    const matchesPostingType = !filters?.postingType || account.postingType === filters.postingType;
+    
+    return matchesQuery && matchesType && matchesCategory && matchesSubLedger && matchesStatus && matchesPostingType;
+  });
+}
+
+export async function getAccountsSummary() {
+  const companyId = await getActiveCompanyId();
+  const accounts = await db.accounts.findAsync<Account>(companyId, {});
+  
+  const totalAccounts = accounts.length;
+  const activeAccounts = accounts.filter(a => a.status === "active").length;
+  const inactiveAccounts = accounts.filter(a => a.status === "inactive").length;
+  const headerAccounts = accounts.filter(a => a.postingType === "header").length;
+  const controlAccounts = accounts.filter(a => a.postingType === "control").length;
+  
+  return {
+    totalAccounts,
+    activeAccounts,
+    inactiveAccounts,
+    headerAccounts,
+    controlAccounts,
+  };
+}
+
 export async function postJournalEntry(
   companyId: string,
   memo: string,
@@ -402,6 +622,22 @@ export async function postJournalEntry(
     lines.map(async (line) => {
       const account = await db.accounts.findOneAsync<Account>(companyId, { _id: line.accountId });
       if (!account) throw new Error(`Journal line references missing account ${line.accountId}`);
+      
+      // Prevent posting to header accounts
+      if (account.postingType === "header") {
+        throw new Error(`Cannot post journal entry to header account ${account.code} - ${account.nameEn}`);
+      }
+      
+      // Check if manual entries are allowed
+      if (!account.allowManualEntry && sourceType === "manual") {
+        throw new Error(`Manual journal entries are not allowed on account ${account.code} - ${account.nameEn}`);
+      }
+      
+      // Check if account is active
+      if (account.status !== "active") {
+        throw new Error(`Cannot post to inactive account ${account.code} - ${account.nameEn}`);
+      }
+      
       return account;
     })
   );
@@ -425,7 +661,19 @@ export async function postJournalEntry(
     const delta = ["asset", "expense"].includes(account.type)
       ? line.debit - line.credit
       : line.credit - line.debit;
-    await db.accounts.updateAsync(companyId, { _id: line.accountId }, { $inc: { balance: delta } });
+    
+    // Update account balance and mark as having journal entries
+    await db.accounts.updateAsync(companyId, { _id: line.accountId }, { 
+      $inc: { balance: delta },
+      $set: { hasJournalEntries: true }
+    });
+    
+    // Also mark parent accounts as having journal entries
+    if (account.parentId) {
+      await db.accounts.updateAsync(companyId, { _id: account.parentId }, { 
+        $set: { hasJournalEntries: true }
+      });
+    }
   }
 }
 
@@ -464,9 +712,9 @@ export async function postInvoice(invoiceId: string, formData: FormData) {
     );
   }
 
-  const ar = await getAccountByCode(companyId, "1100");
-  const revenue = await getAccountByCode(companyId, "4000");
-  const taxPayable = await getAccountByCode(companyId, "2100");
+  const ar = await db.accounts.findOneAsync<Account>(companyId, { category: "receivables", subLedgerType: "customer", postingType: "control" });
+  const revenue = await db.accounts.findOneAsync<Account>(companyId, { category: "revenue", type: "revenue" });
+  const taxPayable = await db.accounts.findOneAsync<Account>(companyId, { category: "tax", type: "liability" });
   const discount = invoice.discount ?? 0;
 
   const lines: JournalLine[] = [
@@ -513,9 +761,9 @@ export async function postCreditNote(id: string, formData: FormData) {
     );
   }
 
-  const ar = await getAccountByCode(companyId, "1100");
-  const revenue = await getAccountByCode(companyId, "4000");
-  const taxPayable = await getAccountByCode(companyId, "2100");
+  const ar = await db.accounts.findOneAsync<Account>(companyId, { category: "receivables", subLedgerType: "customer", postingType: "control" });
+  const revenue = await db.accounts.findOneAsync<Account>(companyId, { category: "revenue", type: "revenue" });
+  const taxPayable = await db.accounts.findOneAsync<Account>(companyId, { category: "tax", type: "liability" });
 
   const lines: JournalLine[] = [{ accountId: revenue._id!, accountName: revenue.name, debit: note.subtotal, credit: 0 }];
   if (note.tax > 0) {
@@ -546,9 +794,9 @@ export async function postDebitNote(id: string, formData: FormData) {
     );
   }
 
-  const ar = await getAccountByCode(companyId, "1100");
-  const revenue = await getAccountByCode(companyId, "4000");
-  const taxPayable = await getAccountByCode(companyId, "2100");
+  const ar = await db.accounts.findOneAsync<Account>(companyId, { category: "receivables", subLedgerType: "customer", postingType: "control" });
+  const revenue = await db.accounts.findOneAsync<Account>(companyId, { category: "revenue", type: "revenue" });
+  const taxPayable = await db.accounts.findOneAsync<Account>(companyId, { category: "tax", type: "liability" });
 
   const lines: JournalLine[] = [{ accountId: ar._id!, accountName: ar.name, debit: note.total, credit: 0 }];
   lines.push({ accountId: revenue._id!, accountName: revenue.name, debit: 0, credit: note.subtotal });
@@ -592,8 +840,8 @@ export async function recordPayment(invoiceId: string, formData: FormData) {
     createdAt: new Date().toISOString(),
   });
 
-  const cash = await getAccountByCode(companyId, "1000");
-  const ar = await getAccountByCode(companyId, "1100");
+  const cash = await db.accounts.findOneAsync<Account>(companyId, { category: "cash", type: "asset" });
+  const ar = await db.accounts.findOneAsync<Account>(companyId, { category: "receivables", subLedgerType: "customer", postingType: "control" });
 
   await postJournalEntry(
     companyId,
@@ -647,11 +895,55 @@ export async function getTrialBalanceCheck() {
   return { balanced, totalDebit, totalCredit };
 }
 
+export async function getTrialBalanceReport() {
+  const companyId = await getActiveCompanyId();
+  const accounts = await db.accounts.findAsync<Account>(companyId, { status: "active" }).sort({ code: 1 });
+  
+  const report = accounts.map(account => {
+    // Calculate debit/credit based on account type and balance
+    let debit = 0;
+    let credit = 0;
+    
+    if (account.type === "asset" || account.type === "expense") {
+      debit = account.balance > 0 ? account.balance : 0;
+      credit = account.balance < 0 ? Math.abs(account.balance) : 0;
+    } else {
+      credit = account.balance > 0 ? account.balance : 0;
+      debit = account.balance < 0 ? Math.abs(account.balance) : 0;
+    }
+    
+    return {
+      code: account.code,
+      nameAr: account.nameAr,
+      nameEn: account.nameEn,
+      type: account.type,
+      category: account.category,
+      postingType: account.postingType,
+      debit,
+      credit,
+      balance: account.balance
+    };
+  });
+  
+  const totalDebit = report.reduce((sum, r) => sum + r.debit, 0);
+  const totalCredit = report.reduce((sum, r) => sum + r.credit, 0);
+  const balanced = Math.round((totalDebit - totalCredit) * 100) === 0;
+  
+  return {
+    report,
+    totalDebit,
+    totalCredit,
+    balanced,
+    generatedAt: new Date().toISOString()
+  };
+}
+
 export async function getFinancialSummary() {
   const companyId = await getActiveCompanyId();
   const accounts = await db.accounts.findAsync<Account>(companyId, {}).sort({ code: 1 });
 
-  const byType = (type: AccountType) => accounts.filter((a) => a.type === type);
+  const byType = (type: AccountType) => accounts.filter((a) => a.type === type && a.status === "active");
+  const byCategory = (category: AccountCategory) => accounts.filter((a) => a.category === category && a.status === "active");
 
   const totalAssets = byType("asset").reduce((s, a) => s + a.balance, 0);
   const totalLiabilities = byType("liability").reduce((s, a) => s + a.balance, 0);
@@ -659,6 +951,12 @@ export async function getFinancialSummary() {
   const totalRevenue = byType("revenue").reduce((s, a) => s + a.balance, 0);
   const totalExpense = byType("expense").reduce((s, a) => s + a.balance, 0);
   const netIncome = totalRevenue - totalExpense;
+  
+  // More detailed breakdown by category
+  const cash = byCategory("cash").reduce((s, a) => s + a.balance, 0);
+  const receivables = byCategory("receivables").reduce((s, a) => s + a.balance, 0);
+  const payables = byCategory("payables").reduce((s, a) => s + a.balance, 0);
+  const tax = byCategory("tax").reduce((s, a) => s + a.balance, 0);
 
   return {
     accounts,
@@ -668,6 +966,10 @@ export async function getFinancialSummary() {
     totalRevenue,
     totalExpense,
     netIncome,
+    cash,
+    receivables,
+    payables,
+    tax,
   };
 }
 
@@ -742,7 +1044,7 @@ export async function getArSummary() {
     db.invoices.findAsync<Invoice>(companyId, { docType: "tax", status: { $ne: "draft" } }),
     db.invoices.findAsync<Invoice>(companyId, { docType: { $in: ["credit_note", "debit_note"] }, status: { $ne: "draft" } }),
     db.payments.findAsync<Payment>(companyId, {}),
-    db.accounts.findOneAsync<Account>(companyId, { code: "1100" }),
+    db.accounts.findOneAsync<Account>(companyId, { category: "receivables", subLedgerType: "customer", postingType: "control" }),
   ]);
 
   const receivedByInvoice = new Map<string, number>();

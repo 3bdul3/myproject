@@ -78,41 +78,172 @@ async function seedTransactionManager(companyId) {
 }
 
 async function seedChartOfAccounts(companyId) {
+  // Create hierarchical chart of accounts with parent/sub relationships
   const chart = [
-    { code: "1000", name: "Cash", type: "asset", group: "general" },
-    { code: "1100", name: "Accounts Receivable", type: "asset", group: "ar" },
-    { code: "1150", name: "VAT Receivable (Input)", type: "asset", group: "general" },
-    { code: "1200", name: "Inventory", type: "asset", group: "general" },
-    { code: "2000", name: "Accounts Payable (Trade)", type: "liability", group: "ap_trade" },
-    { code: "2100", name: "VAT Payable (Output)", type: "liability", group: "ap_zakat" },
-    { code: "2060", name: "Zakat Payable", type: "liability", group: "ap_zakat" },
-    { code: "3000", name: "Owner's Equity", type: "equity", group: "general" },
-    { code: "4000", name: "Sales Revenue", type: "revenue", group: "general" },
-    { code: "4900", name: "Sales Discounts", type: "revenue", group: "general" },
-    { code: "5000", name: "Cost of Goods Sold", type: "expense", group: "general" },
-    { code: "5100", name: "Payroll Expense", type: "expense", group: "general" },
-    { code: "5200", name: "Operating Expense", type: "expense", group: "general" },
+    // ASSETS
+    {
+      code: "1000", nameAr: "الأصول", nameEn: "Assets", type: "asset", category: "fixed_assets",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false
+    },
+    {
+      code: "1010", nameAr: "الأصول المتداولة", nameEn: "Current Assets", type: "asset", category: "fixed_assets",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false, parentId: "1000"
+    },
+    {
+      code: "1011", nameAr: "النقد والبنوك", nameEn: "Cash & Banks", type: "asset", category: "cash",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false, parentId: "1010"
+    },
+    {
+      code: "1012", nameAr: "الصندوق", nameEn: "Cash", type: "asset", category: "cash",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "1011"
+    },
+    {
+      code: "1013", nameAr: "البنك", nameEn: "Bank Account", type: "asset", category: "cash",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "1011"
+    },
+    {
+      code: "1100", nameAr: "الذمم المدينة", nameEn: "Accounts Receivable", type: "asset", category: "receivables",
+      subLedgerType: "customer", postingType: "control", status: "active", allowManualEntry: false, parentId: "1010"
+    },
+    {
+      code: "1150", nameAr: "ضريبة القيمة المضافة المستحقة", nameEn: "VAT Receivable (Input)", type: "asset", category: "tax",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: false, parentId: "1010"
+    },
+    {
+      code: "1200", nameAr: "المخزون", nameEn: "Inventory", type: "asset", category: "fixed_assets",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "1010"
+    },
+    {
+      code: "1500", nameAr: "الأصول الثابتة", nameEn: "Fixed Assets", type: "asset", category: "fixed_assets",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false, parentId: "1000"
+    },
+    
+    // LIABILITIES
+    {
+      code: "2000", nameAr: "الالتزامات", nameEn: "Liabilities", type: "liability", category: "payables",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false
+    },
+    {
+      code: "2010", nameAr: "الذمم الدائنة", nameEn: "Accounts Payable", type: "liability", category: "payables",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false, parentId: "2000"
+    },
+    {
+      code: "2020", nameAr: "الموردين", nameEn: "Trade Payables", type: "liability", category: "payables",
+      subLedgerType: "supplier", postingType: "control", status: "active", allowManualEntry: false, parentId: "2010"
+    },
+    {
+      code: "2100", nameAr: "الضرائب والزكاة", nameEn: "Tax & Zakat Accounts", type: "liability", category: "tax",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false, parentId: "2000"
+    },
+    {
+      code: "2110", nameAr: "ضريبة القيمة المضافة المستحقة", nameEn: "VAT Payable (Output)", type: "liability", category: "tax",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: false, parentId: "2100"
+    },
+    {
+      code: "2120", nameAr: "ضريبة القيمة المضافة القابلة للاسترداد", nameEn: "VAT Receivable (Input)", type: "liability", category: "tax",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: false, parentId: "2100"
+    },
+    {
+      code: "2130", nameAr: "ضريبة الخصم من المصدر", nameEn: "Withholding Tax", type: "liability", category: "tax",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: false, parentId: "2100"
+    },
+    {
+      code: "2140", nameAr: "الزكاة المستحقة", nameEn: "Zakat Payable", type: "liability", category: "tax",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: false, parentId: "2100"
+    },
+    
+    // EQUITY
+    {
+      code: "3000", nameAr: "حقوق الملكية", nameEn: "Equity", type: "equity", category: "equity",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false
+    },
+    {
+      code: "3100", nameAr: "رأس المال", nameEn: "Owner's Equity", type: "equity", category: "equity",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "3000"
+    },
+    
+    // REVENUE
+    {
+      code: "4000", nameAr: "الإيرادات", nameEn: "Revenue", type: "revenue", category: "revenue",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false
+    },
+    {
+      code: "4100", nameAr: "إيرادات المبيعات", nameEn: "Sales Revenue", type: "revenue", category: "revenue",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "4000"
+    },
+    {
+      code: "4900", nameAr: "خصومات المبيعات", nameEn: "Sales Discounts", type: "revenue", category: "revenue",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "4000"
+    },
+    
+    // EXPENSES
+    {
+      code: "5000", nameAr: "المصروفات", nameEn: "Expenses", type: "expense", category: "expenses",
+      subLedgerType: "general", postingType: "header", status: "active", allowManualEntry: false
+    },
+    {
+      code: "5100", nameAr: "تكلفة البضاعة المباعة", nameEn: "Cost of Goods Sold", type: "expense", category: "expenses",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "5000"
+    },
+    {
+      code: "5200", nameAr: "الرواتب والأجور", nameEn: "Payroll Expense", type: "expense", category: "expenses",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "5000"
+    },
+    {
+      code: "5300", nameAr: "المصروفات التشغيلية", nameEn: "Operating Expense", type: "expense", category: "expenses",
+      subLedgerType: "general", postingType: "posting", status: "active", allowManualEntry: true, parentId: "5000"
+    },
   ];
+  
   let added = 0;
   let updated = 0;
+  
+  // First pass: create all accounts without parent relationships
   for (const a of chart) {
+    const { parentId, ...accountData } = a;
     const existing = await accounts.findOneAsync({ companyId, code: a.code });
+    
     if (existing) {
-      if (existing.name !== a.name || existing.group !== a.group) {
-        await accounts.updateAsync({ _id: existing._id }, { $set: { name: a.name, group: a.group } });
-        updated += 1;
-      }
-      continue;
+      // Update existing account with new structure
+      const updateData = {
+        nameAr: a.nameAr,
+        nameEn: a.nameEn,
+        category: a.category,
+        subLedgerType: a.subLedgerType,
+        postingType: a.postingType,
+        status: a.status,
+        allowManualEntry: a.allowManualEntry,
+        updatedAt: now
+      };
+      
+      await accounts.updateAsync({ _id: existing._id }, { $set: updateData });
+      updated += 1;
+    } else {
+      // Insert new account
+      await accounts.insertAsync({
+        ...accountData,
+        companyId,
+        codeKey: `${companyId}:${a.code}`,
+        balance: 0,
+        hasJournalEntries: false,
+        createdAt: now,
+      });
+      added += 1;
     }
-    await accounts.insertAsync({
-      ...a,
-      companyId,
-      codeKey: `${companyId}:${a.code}`,
-      balance: 0,
-      createdAt: now,
-    });
-    added += 1;
   }
+  
+  // Second pass: establish parent relationships using code references
+  for (const a of chart) {
+    if (a.parentId) {
+      const parent = await accounts.findOneAsync({ companyId, code: a.parentId });
+      const child = await accounts.findOneAsync({ companyId, code: a.code });
+      
+      if (parent && child && parent._id !== child._id) {
+        await accounts.updateAsync({ _id: child._id }, { $set: { parentId: parent._id } });
+      }
+    }
+  }
+  
   console.log(
     added > 0 || updated > 0
       ? `Seeded ${added} new account(s), updated ${updated} existing account(s).`

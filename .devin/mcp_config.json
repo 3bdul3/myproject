@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${env:GITHUB_TOKEN}"
+      }
+    },
+    "notion": {
+      "url": "https://mcp.notion.com/mcp",
+      "transport": "http"
+    },
+    "linear": {
+      "url": "https://mcp.linear.app/mcp",
+      "transport": "http"
+    },
+    "canva": {
+      "url": "https://mcp.canva.com/mcp",
+      "transport": "http"
+    },
+    "atlassian": {
+      "url": "https://mcp.atlassian.com/v1/mcp",
+      "transport": "http"
+    }
+  }
+}

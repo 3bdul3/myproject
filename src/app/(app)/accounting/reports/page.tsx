@@ -1,5 +1,6 @@
-import { getFinancialSummary, getVatReport, listJournalEntries } from "@/lib/actions/accounting";
+import { getFinancialSummary, getVatReport, listJournalEntries, getTrialBalanceCheck } from "@/lib/actions/accounting";
 import { PageHeader, Card, StatCard, Badge } from "@/components/ui";
+import Link from "next/link";
 
 const docLabel: Record<string, string> = {
   tax: "Tax Invoice",
@@ -11,10 +12,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const { month: monthParam } = await searchParams;
   const month = monthParam || new Date().toISOString().slice(0, 7);
 
-  const [summary, entries, vatReport] = await Promise.all([
+  const [summary, entries, vatReport, trialBalance] = await Promise.all([
     getFinancialSummary(),
     listJournalEntries(),
     getVatReport(month),
+    getTrialBalanceCheck(),
   ]);
 
   const byType = (type: string) => summary.accounts.filter((a) => a.type === type);
@@ -23,7 +25,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     <div>
       <PageHeader title="Financial Reports" subtitle="Balance sheet, income statement, and ledger" />
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard label="Total Assets" value={summary.totalAssets.toFixed(2)} />
         <StatCard label="Total Liabilities" value={summary.totalLiabilities.toFixed(2)} />
         <StatCard label="Revenue" value={summary.totalRevenue.toFixed(2)} />
@@ -32,6 +34,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           value={summary.netIncome.toFixed(2)}
           hint={summary.netIncome >= 0 ? "Profit" : "Loss"}
         />
+        <Card className="flex items-center justify-center p-4">
+          <Link 
+            href="/accounting/reports/trial-balance"
+            className="text-sm font-medium text-brand-600 hover:text-brand-700"
+          >
+            View Trial Balance →
+          </Link>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -205,6 +215,26 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             )}
           </tbody>
         </table>
+      </Card>
+
+      {/* Trial Balance Status Indicator */}
+      <Card className={`mt-6 p-4 ${trialBalance.balanced ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <span className={`font-medium ${trialBalance.balanced ? "text-emerald-700" : "text-red-700"}`}>
+              {trialBalance.balanced ? "✓ Trial Balance: In Balance" : "⚠ Trial Balance: Out of Balance"}
+            </span>
+            <div className="text-xs text-stone-600 mt-1">
+              Debits {trialBalance.totalDebit.toFixed(2)} {trialBalance.balanced ? "=" : "≠"} Credits {trialBalance.totalCredit.toFixed(2)}
+            </div>
+          </div>
+          <Link 
+            href="/accounting/reports/trial-balance"
+            className="rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
+          >
+            View Full Report
+          </Link>
+        </div>
       </Card>
     </div>
   );

@@ -27,19 +27,60 @@ export interface User extends Base {
   passwordChangedAt?: string;
 }
 
+// Account Classification (Financial Statement Categories)
 export type AccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
 
-export type AccountGroup = "ar" | "ap_trade" | "ap_zakat" | "general";
+// Account Sub-classification (More detailed categorization)
+export type AccountCategory = 
+  | "cash" 
+  | "fixed_assets" 
+  | "receivables" 
+  | "payables" 
+  | "tax" 
+  | "revenue" 
+  | "expenses" 
+  | "equity";
+
+// Sub-ledger Type (Separate from classification)
+export type SubLedgerType = "general" | "customer" | "supplier";
+
+// Account Posting Type (Header/Posting/Control)
+export type AccountPostingType = "header" | "posting" | "control";
+
+// Account Status
+export type AccountStatus = "active" | "inactive";
 
 export interface Account extends Base {
   companyId?: string;
   code: string;
   /** Derived `${companyId}:${code}` key, unique-indexed, since NeDB has no native compound unique index. */
   codeKey?: string;
-  name: string;
+  /** Parent account ID for hierarchical structure (parent/sub-accounts) */
+  parentId?: string;
+  /** Account name in Arabic */
+  nameAr: string;
+  /** Account name in English */
+  nameEn: string;
+  /** Financial statement classification */
   type: AccountType;
-  group: AccountGroup;
+  /** Detailed account category */
+  category: AccountCategory;
+  /** Sub-ledger association */
+  subLedgerType: SubLedgerType;
+  /** Posting behavior (header accounts cannot have direct journal entries) */
+  postingType: AccountPostingType;
+  /** Account status (active/inactive) */
+  status: AccountStatus;
+  /** Whether manual journal entries are allowed on this account */
+  allowManualEntry: boolean;
+  /** Current balance */
   balance: number;
+  /** User who last modified this account (for audit trail) */
+  lastModifiedBy?: string;
+  /** Whether this account has been used in journal entries (prevents deletion) */
+  hasJournalEntries?: boolean;
+  /** Suggested next account code for child accounts */
+  suggestedChildCode?: string;
 }
 
 export interface JournalLine {

@@ -48,6 +48,9 @@ yarn-error.log*
 # claude code local worktrees
 /.claude/worktrees/
 
+# devin local MCP configuration (contains secrets)
+.devin/mcp_config.local.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
