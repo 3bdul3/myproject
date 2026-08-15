@@ -1,7 +1,5 @@
 "use server";
 
-// Fixed TypeScript build errors - compatibility layer for accounting
-
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, nextNumber } from "@/lib/db";
